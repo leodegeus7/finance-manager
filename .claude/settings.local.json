@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git remote:*)",
+      "Bash(npm install:*)",
+      "Read(//Users/leodegeus/.bun/bin/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(export PATH=\"/opt/homebrew/bin:$PATH\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(/opt/homebrew/bin/npm install:*)",
+      "Bash(/opt/homebrew/Cellar/node/25.9.0_1/bin/node /opt/homebrew/Cellar/node/25.9.0_1/bin/npm install @supabase/supabase-js)",
+      "Bash(/opt/homebrew/Cellar/node/25.9.0_1/bin/node /opt/homebrew/Cellar/node/25.9.0_1/bin/npm run build)",
+      "Bash(PATH=\"/opt/homebrew/Cellar/node/25.9.0_1/bin:$PATH\" npm run build)",
+      "Bash(sed 's/create table if not exists /create table /g' /Users/leodegeus/finance-manager/supabase/schema.sql)",
+      "Bash(mv /tmp/schema_fixed.sql /Users/leodegeus/finance-manager/supabase/schema.sql)",
+      "Bash(sed 's/create index if not exists /create index /g' /Users/leodegeus/finance-manager/supabase/schema.sql)",
+      "Bash(PATH=\"/opt/homebrew/Cellar/node/25.9.0_1/bin:$PATH\" python3 -c \":*)",
+      "Bash(python3 -m pip install pdfplumber --quiet)",
+      "Bash(python3 -c \":*)",
+      "Bash(python3 /Users/leodegeus/finance-manager/scripts/inter_credit_pdf.py /Users/leodegeus/Downloads/fatura-inter-2025-09.pdf /tmp/inter-test-output.csv)",
+      "Read(//tmp/**)",
+      "Bash(sed -i '' 's/def extract_invoice_total\\(pages: list\\\\[str\\\\]\\) -> float | None:/def extract_invoice_total\\(pages: list\\) -> Optional[float]:/' /Users/leodegeus/finance-manager/scripts/inter_credit_pdf.py)",
+      "Bash(sed -i '' 's/def extract_transactions\\(pages: list\\\\[str\\\\]\\) -> list\\\\[dict\\\\]:/def extract_transactions\\(pages: list\\) -> list:/' /Users/leodegeus/finance-manager/scripts/inter_credit_pdf.py)",
+      "Bash(sed -i '' 's/def validate\\(transactions: list\\\\[dict\\\\], invoice_total: float | None\\) -> bool:/def validate\\(transactions: list, invoice_total: Optional[float]\\) -> bool:/' /Users/leodegeus/finance-manager/scripts/inter_credit_pdf.py)",
+      "Bash(sed -i '' 's/def to_csv\\(transactions: list\\\\[dict\\\\]\\) -> str:/def to_csv\\(transactions: list\\) -> str:/' /Users/leodegeus/finance-manager/scripts/inter_credit_pdf.py)",
+      "Bash(sed -i '' 's/def main\\(pdf_path: str, output_path: str | None = None\\):/def main\\(pdf_path: str, output_path: Optional[str] = None\\):/' /Users/leodegeus/finance-manager/scripts/inter_credit_pdf.py)",
+      "Bash(python3 /Users/leodegeus/finance-manager/scripts/inter_credit_pdf.py /Users/leodegeus/Downloads/fatura-inter-2026-03.pdf)",
+      "Bash(PATH=\"/opt/homebrew/Cellar/node/25.9.0_1/bin:$PATH\" npm install pdfjs-dist)",
+      "Bash(grep -v \"^$\")",
+      "Bash(supabase --version)",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(npx supabase *)",
+      "Bash(xargs ls)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}

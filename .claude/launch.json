@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "finance-manager",
+      "runtimeExecutable": "/opt/homebrew/Cellar/node/25.9.0_1/bin/node",
+      "runtimeArgs": ["/Users/leodegeus/finance-manager/node_modules/.bin/vite", "--port", "3000"],
+      "port": 3000
+    }
+  ]
+}
