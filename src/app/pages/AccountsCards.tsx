@@ -111,8 +111,8 @@ export function AccountsCards() {
   // of the most recent month in the whole dataset.
   // This catches accounts that silently went to 0 without an explicit zero record
   // (e.g. Avenue: last record is May/2021, global max is Aug/2025 → clearly closed).
-  function isActive(entry: AccountLatestEntry | undefined, fallbackBalance: number): boolean {
-    if (!entry) return fallbackBalance > 0  // no history: use DB balance
+  function isActive(entry: AccountLatestEntry | undefined, _fallbackBalance: number): boolean {
+    if (!entry) return true                 // no history = newly created or never tracked → always show
     if (entry.balance <= 0) return false    // explicitly zeroed
     if (!maxMonth) return true              // maxMonth not loaded yet, be permissive
     // Compare months as YYYY-MM strings — 3-month tolerance
