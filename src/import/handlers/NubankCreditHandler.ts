@@ -23,10 +23,14 @@ export class NubankCreditHandler implements ImportHandler {
 
   identify(fileName: string, headers: string[]): boolean {
     const lowerName = fileName.toLowerCase()
+    // Name match: nubank + any indicator of credit card / invoice
     const nameMatch =
       lowerName.includes('nubank') &&
       (lowerName.includes('fatura') || lowerName.includes('cartao') || lowerName.includes('cartão'))
+    // Header match: date+title+amount — but ONLY when combined with nubank in filename,
+    // to avoid matching other CSVs with the same column names
     const headerMatch =
+      lowerName.includes('nubank') &&
       headers.includes('date') &&
       headers.includes('title') &&
       headers.includes('amount')

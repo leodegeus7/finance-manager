@@ -128,13 +128,21 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
       }
 
       // Parse and preview immediately — do NOT save yet
+      const resolvedCardId    = isCard ? (guessCard(handler.source, cards)?.id ?? cards[0]?.id ?? '') : undefined
+      const resolvedAccountId = isCard ? undefined : (guessAccount(handler.source, accounts)?.id ?? accounts[0]?.id ?? '')
       const ctx = {
         userId,
-        creditCardId: isCard ? (guessCard(handler.source, cards)?.id ?? cards[0]?.id ?? '') : undefined,
-        accountId:    isCard ? undefined : (guessAccount(handler.source, accounts)?.id ?? accounts[0]?.id ?? ''),
+        creditCardId:   resolvedCardId,
+        accountId:      resolvedAccountId,
         statementMonth: isCard ? monthGuess : undefined,
       }
-      const pipeline = runImportPipeline({ fileName: f.name, fileContent: content, context: ctx })
+
+      // Only run the pipeline if we have the required context (card or account).
+      // If cards haven't loaded yet, skip — reparse() will fire when selectedCardId changes.
+      let pipeline = { transactions: [] as NormalizedTransaction[] }
+      if (!isCard || resolvedCardId) {
+        pipeline = runImportPipeline({ fileName: f.name, fileContent: content, context: ctx })
+      }
 
       // PDF validation warning
       if (f.name.toLowerCase().endsWith('.pdf') && handler.source === 'inter_credit') {
@@ -173,6 +181,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
   // Re-run parse when account/card/month selection changes in preview
   const reparse = useCallback(() => {
     if (!file || !extractedText) return
+    if (needsCard && !selectedCardId) return  // wait for card to be selected
     const ctx = {
       userId,
       creditCardId: needsCard ? selectedCardId : undefined,
