@@ -3,11 +3,13 @@ import { createContext, useContext, useState, ReactNode } from 'react'
 type UserId = 'leo' | 'murilo'
 
 interface UserContextValue {
-  userId:   UserId
-  userName: string
+  userId:    UserId
+  userName:  string
+  hasChosen: boolean           // false = show welcome/selection screen
   setUserId: (id: UserId) => void
-  month:    string          // YYYY-MM-01
-  setMonth: (m: string) => void
+  clearUser: () => void        // go back to selection screen
+  month:     string            // YYYY-MM-01
+  setMonth:  (m: string) => void
 }
 
 const USERS: Record<UserId, string> = {
@@ -23,7 +25,9 @@ function currentMonthISO(): string {
 const UserContext = createContext<UserContextValue>({
   userId:    'leo',
   userName:  'Leonardo',
+  hasChosen: false,
   setUserId: () => {},
+  clearUser: () => {},
   month:     currentMonthISO(),
   setMonth:  () => {},
 })
@@ -38,13 +42,24 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return (stored === 'murilo' ? 'murilo' : 'leo') as UserId
   })
 
+  // hasChosen: true if user already picked a profile (saved in localStorage)
+  const [hasChosen, setHasChosen] = useState<boolean>(
+    () => !!localStorage.getItem('finance_user_id'),
+  )
+
   const [month, setMonthState] = useState<string>(() => {
     return localStorage.getItem('finance_month') ?? currentMonthISO()
   })
 
   function setUserId(id: UserId) {
     setUserIdState(id)
+    setHasChosen(true)
     localStorage.setItem('finance_user_id', id)
+  }
+
+  function clearUser() {
+    setHasChosen(false)
+    localStorage.removeItem('finance_user_id')
   }
 
   function setMonth(m: string) {
@@ -53,7 +68,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <UserContext.Provider value={{ userId, userName: USERS[userId], setUserId, month, setMonth }}>
+    <UserContext.Provider value={{ userId, userName: USERS[userId], hasChosen, setUserId, clearUser, month, setMonth }}>
       {children}
     </UserContext.Provider>
   )
