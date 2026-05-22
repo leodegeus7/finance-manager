@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Background: dark slate rounded square -->
+  <rect width="32" height="32" rx="8" fill="#111827"/>
+
+  <!-- Rising bars (all bottom-aligned at y=27) -->
+  <!-- Left bar: short -->
+  <rect x="5" y="21" width="6" height="6" rx="2" fill="#fbbf24" opacity="0.5"/>
+  <!-- Middle bar: medium -->
+  <rect x="13" y="15" width="6" height="12" rx="2" fill="#fbbf24" opacity="0.75"/>
+  <!-- Right bar: tall -->
+  <rect x="21" y="9" width="6" height="18" rx="2" fill="#fbbf24"/>
+
+  <!-- Trend line connecting bar tops -->
+  <polyline
+    points="8,21 16,15 24,9"
+    stroke="white"
+    stroke-width="1.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+    opacity="0.35"
+  />
+  <!-- Dot at peak -->
+  <circle cx="24" cy="9" r="2" fill="white" opacity="0.6"/>
+</svg>
