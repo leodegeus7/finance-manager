@@ -220,8 +220,9 @@ export class MuriloTransacoesHandler implements ImportHandler {
       const credit_card_id: string | null = tipo === 'Cartão'
         ? (lugar === 'Inter' ? (ctx.creditCardIdInter ?? null) : (ctx.creditCardId ?? null))
         : null
+      const isRdb = /rdb/i.test(descr)
       const account_id: string | null = tipo !== 'Cartão'
-        ? (ctx.accountId ?? null)
+        ? (isRdb ? (ctx.accountIdRdb ?? ctx.accountId ?? null) : (ctx.accountId ?? null))
         : null
 
       // T: = transfer | D:Cartão = credit_card_payment | D: = expense | R: = income

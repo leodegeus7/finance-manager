@@ -92,6 +92,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
   const [selectedCardId, setSelectedCardId]         = useState('')
   const [selectedInterCardId, setSelectedInterCardId] = useState('')
   const [selectedAccountId, setSelectedAccountId]   = useState('')
+  const [selectedRdbAccountId, setSelectedRdbAccountId] = useState('')
   const [statementMonth, setStatementMonth]     = useState('')
   const [normalizedTxs, setNormalizedTxs]       = useState<NormalizedTransaction[]>([])
   const [drafts, setDrafts]               = useState<Map<string, Draft>>(new Map())
@@ -132,10 +133,12 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
       if (isMurilo) {
         resolvedCardId      = cards.find((c) => c.bank === 'nubank')?.id  ?? cards[0]?.id ?? ''
         resolvedInterCardId = cards.find((c) => c.bank === 'inter')?.id   ?? ''
-        resolvedAccountId   = accounts.find((a) => a.bank === 'nubank')?.id ?? accounts[0]?.id ?? ''
+        resolvedAccountId   = accounts.find((a) => a.bank === 'nubank' && !/rdb/i.test(a.name))?.id ?? accounts[0]?.id ?? ''
+        const resolvedRdbAccountId = accounts.find((a) => /rdb/i.test(a.name))?.id ?? ''
         setSelectedCardId(resolvedCardId)
         setSelectedInterCardId(resolvedInterCardId)
         setSelectedAccountId(resolvedAccountId)
+        setSelectedRdbAccountId(resolvedRdbAccountId)
       } else if (isCard) {
         resolvedCardId = guessCard(handler.source, cards)?.id ?? cards[0]?.id ?? ''
         setSelectedCardId(resolvedCardId)
@@ -150,6 +153,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
         creditCardId:      resolvedCardId,
         creditCardIdInter: resolvedInterCardId,
         accountId:         resolvedAccountId,
+        accountIdRdb:      resolvedRdbAccountId,
         statementMonth:    isCard ? monthGuess : undefined,
       }
 
@@ -204,6 +208,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
       creditCardId:      needsCard || isMurilo ? selectedCardId      : undefined,
       creditCardIdInter: isMurilo               ? selectedInterCardId : undefined,
       accountId:         !needsCard || isMurilo ? selectedAccountId   : undefined,
+      accountIdRdb:      isMurilo               ? selectedRdbAccountId : undefined,
       statementMonth:    needsCard               ? statementMonth      : undefined,
     }
     try {
@@ -223,12 +228,12 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
         return next
       })
     } catch {}
-  }, [file, extractedText, userId, source, needsCard, selectedCardId, selectedInterCardId, selectedAccountId, statementMonth])
+  }, [file, extractedText, userId, source, needsCard, selectedCardId, selectedInterCardId, selectedAccountId, selectedRdbAccountId, statementMonth])
 
   useEffect(() => {
     if (step === 'preview') reparse()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCardId, selectedInterCardId, selectedAccountId, statementMonth])
+  }, [selectedCardId, selectedInterCardId, selectedAccountId, selectedRdbAccountId, statementMonth])
 
   useEffect(() => {
     if (initialFile) handleFile(initialFile)
@@ -253,6 +258,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
         creditCardId:      needsCard || isMurilo ? selectedCardId      : undefined,
         creditCardIdInter: isMurilo               ? selectedInterCardId : undefined,
         accountId:         !needsCard || isMurilo ? selectedAccountId   : undefined,
+        accountIdRdb:      isMurilo               ? selectedRdbAccountId : undefined,
         statementMonth:    needsCard               ? statementMonth      : undefined,
       }
 
@@ -361,7 +367,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
               </div>
 
               {isMuriloHandler(source) ? (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">Nubank Cartão</label>
                     <select className="w-full text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none"
@@ -380,6 +386,14 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                     <label className="text-xs text-gray-500 block mb-1">Nubank Conta</label>
                     <select className="w-full text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none"
                       value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)}>
+                      {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Nubank RDB</label>
+                    <select className="w-full text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none"
+                      value={selectedRdbAccountId} onChange={(e) => setSelectedRdbAccountId(e.target.value)}>
+                      <option value="">Nenhuma</option>
                       {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                     </select>
                   </div>

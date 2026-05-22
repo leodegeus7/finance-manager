@@ -85,6 +85,7 @@ export interface ImportHandler {
 export interface HandlerContext {
   userId: string
   accountId?: string
+  accountIdRdb?: string       // RDB/investment account (e.g. Nubank RDB)
   creditCardId?: string
   creditCardIdInter?: string  // secondary card for multi-source handlers
   statementMonth?: string     // YYYY-MM-01 — caller sets this for CC imports
