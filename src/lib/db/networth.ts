@@ -38,11 +38,14 @@ export interface AccountLatestEntry {
 }
 
 /**
- * Returns the most recent balance + month per account, plus the global max month
- * across all accounts (used to detect dormant/closed accounts).
+ * Returns the most recent balance + month per account up to (and including)
+ * upToMonth, plus the global max month across all accounts.
+ * upToMonth: YYYY-MM-01 — when provided, entries after this month are ignored
+ * for the per-account latest, but still count towards globalMaxMonth.
  */
 export async function fetchLatestAccountBalances(
   userId: string,
+  upToMonth?: string,
 ): Promise<{ entries: Map<string, AccountLatestEntry>; maxMonth: string }> {
   const rows = await fetchAccountBalanceHistory(userId)
   const entries = new Map<string, AccountLatestEntry>()
@@ -50,6 +53,7 @@ export async function fetchLatestAccountBalances(
 
   for (const r of rows) {
     if (r.month > maxMonth) maxMonth = r.month
+    if (upToMonth && r.month > upToMonth) continue  // ignore future entries for this month's view
     const existing = entries.get(r.account_id)
     if (!existing || r.month > existing.month) {
       entries.set(r.account_id, { balance: r.balance, month: r.month })

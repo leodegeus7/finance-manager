@@ -34,10 +34,10 @@ export function AccountsCards() {
   const [latestEntries, setLatestEntries] = useState<Map<string, AccountLatestEntry>>(new Map())
   const [maxMonth, setMaxMonth] = useState('')
   useEffect(() => {
-    fetchLatestAccountBalances(userId)
+    fetchLatestAccountBalances(userId, month)
       .then(({ entries, maxMonth: mx }) => { setLatestEntries(entries); setMaxMonth(mx) })
       .catch(() => {/* ignore */})
-  }, [userId])
+  }, [userId, month])
 
   // Add account form
   const [showAddAccount, setShowAddAccount] = useState(false)
@@ -114,11 +114,11 @@ export function AccountsCards() {
   function isActive(entry: AccountLatestEntry | undefined, _fallbackBalance: number): boolean {
     if (!entry) return true                 // no history = newly created or never tracked → always show
     if (entry.balance <= 0) return false    // explicitly zeroed
-    if (!maxMonth) return true              // maxMonth not loaded yet, be permissive
-    // Compare months as YYYY-MM strings — 3-month tolerance
-    const [my, mm] = maxMonth.split('-').map(Number)
+    if (!month) return true
+    // Compare entry's last recorded month against the viewed month — 12-month tolerance
+    const [vy, vm] = month.split('-').map(Number)
     const [ey, em] = entry.month.split('-').map(Number)
-    const monthsAgo = (my - ey) * 12 + (mm - em)
+    const monthsAgo = (vy - ey) * 12 + (vm - em)
     return monthsAgo <= 12
   }
 
