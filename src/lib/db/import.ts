@@ -37,8 +37,8 @@ export async function upsertTransactions(
 
     return {
       user_id:             userId,
-      account_id:          accountId ?? null,
-      credit_card_id:      creditCardId ?? null,
+      account_id:          tx.account_id !== undefined ? tx.account_id     : (accountId     ?? null),
+      credit_card_id:      tx.credit_card_id !== undefined ? tx.credit_card_id : (creditCardId ?? null),
       date:                tx.date,
       competency_month:    tx.competency_month,
       statement_month:     tx.statement_month ?? null,

@@ -2,6 +2,8 @@
 // IMPORT SYSTEM — SHARED TYPES
 // ============================================================
 
+import type { SplitParticipant } from '@/engine/types'
+
 export type TransactionDirection = 'income' | 'expense'
 
 export type TransactionType =
@@ -53,6 +55,16 @@ export interface NormalizedTransaction {
   // Installments — C6 only
   installment_current?: number
   installment_total?: number
+
+  // Per-transaction linkage — overrides context when set (multi-source handlers)
+  // null = explicitly no ID; undefined = fall back to context
+  credit_card_id?: string | null
+  account_id?: string | null
+
+  // Pre-populated classification hints from handler (user can override in UI)
+  suggested_category_id?: string
+  suggested_context?: TransactionContext
+  suggested_splits?: SplitParticipant[] | null
 }
 
 // Handler interface — every handler MUST implement these three
@@ -74,7 +86,8 @@ export interface HandlerContext {
   userId: string
   accountId?: string
   creditCardId?: string
-  statementMonth?: string  // YYYY-MM-01 — caller sets this for CC imports
+  creditCardIdInter?: string  // secondary card for multi-source handlers
+  statementMonth?: string     // YYYY-MM-01 — caller sets this for CC imports
 }
 
 // Full result of a pipeline run

@@ -5,7 +5,7 @@
 // ============================================================
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { resolveHandler, isCardHandler } from '@/import/HandlerRegistry'
+import { resolveHandler, isCardHandler, isMuriloHandler } from '@/import/HandlerRegistry'
 import { runImportPipeline } from '@/import/ImportPipeline'
 import { NormalizedTransaction } from '@/import/types'
 import { InterCreditPDFHandler } from '@/import/handlers/InterCreditPDFHandler'
@@ -31,10 +31,11 @@ interface Props {
 type Step = 'idle' | 'detecting' | 'preview' | 'saving' | 'done' | 'error'
 
 const SOURCE_LABELS: Record<string, string> = {
-  nubank_account: 'Nubank Conta',
-  nubank_credit:  'Nubank Cartão',
-  c6_credit:      'C6 Cartão',
-  inter_credit:   'Inter Cartão',
+  nubank_account:    'Nubank Conta',
+  nubank_credit:     'Nubank Cartão',
+  c6_credit:         'C6 Cartão',
+  inter_credit:      'Inter Cartão',
+  murilo_transacoes: 'Murilo — Todas as Transações',
 }
 
 function guessStatementMonth(fileName: string): string {
@@ -88,8 +89,9 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
   const [source, setSource]               = useState('')
   const [extractedText, setExtractedText] = useState('')
   const [needsCard, setNeedsCard]         = useState(false)
-  const [selectedCardId, setSelectedCardId]     = useState('')
-  const [selectedAccountId, setSelectedAccountId] = useState('')
+  const [selectedCardId, setSelectedCardId]         = useState('')
+  const [selectedInterCardId, setSelectedInterCardId] = useState('')
+  const [selectedAccountId, setSelectedAccountId]   = useState('')
   const [statementMonth, setStatementMonth]     = useState('')
   const [normalizedTxs, setNormalizedTxs]       = useState<NormalizedTransaction[]>([])
   const [drafts, setDrafts]               = useState<Map<string, Draft>>(new Map())
@@ -115,27 +117,40 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
       setExtractedText(content)
 
       const { handler } = resolveHandler(f.name, content)
-      const isCard = isCardHandler(handler.source)
+      const isCard    = isCardHandler(handler.source)
+      const isMurilo  = isMuriloHandler(handler.source)
       setSource(handler.source)
       setNeedsCard(isCard)
 
       const monthGuess = guessStatementMonth(f.name)
       setStatementMonth(monthGuess)
 
-      if (isCard) {
-        setSelectedCardId(guessCard(handler.source, cards)?.id ?? cards[0]?.id ?? '')
+      let resolvedCardId: string | undefined
+      let resolvedInterCardId: string | undefined
+      let resolvedAccountId: string | undefined
+
+      if (isMurilo) {
+        resolvedCardId      = cards.find((c) => c.bank === 'nubank')?.id  ?? cards[0]?.id ?? ''
+        resolvedInterCardId = cards.find((c) => c.bank === 'inter')?.id   ?? ''
+        resolvedAccountId   = accounts.find((a) => a.bank === 'nubank')?.id ?? accounts[0]?.id ?? ''
+        setSelectedCardId(resolvedCardId)
+        setSelectedInterCardId(resolvedInterCardId)
+        setSelectedAccountId(resolvedAccountId)
+      } else if (isCard) {
+        resolvedCardId = guessCard(handler.source, cards)?.id ?? cards[0]?.id ?? ''
+        setSelectedCardId(resolvedCardId)
       } else {
-        setSelectedAccountId(guessAccount(handler.source, accounts)?.id ?? accounts[0]?.id ?? '')
+        resolvedAccountId = guessAccount(handler.source, accounts)?.id ?? accounts[0]?.id ?? ''
+        setSelectedAccountId(resolvedAccountId)
       }
 
       // Parse and preview immediately — do NOT save yet
-      const resolvedCardId    = isCard ? (guessCard(handler.source, cards)?.id ?? cards[0]?.id ?? '') : undefined
-      const resolvedAccountId = isCard ? undefined : (guessAccount(handler.source, accounts)?.id ?? accounts[0]?.id ?? '')
       const ctx = {
         userId,
-        creditCardId:   resolvedCardId,
-        accountId:      resolvedAccountId,
-        statementMonth: isCard ? monthGuess : undefined,
+        creditCardId:      resolvedCardId,
+        creditCardIdInter: resolvedInterCardId,
+        accountId:         resolvedAccountId,
+        statementMonth:    isCard ? monthGuess : undefined,
       }
 
       // Only run the pipeline if we have the required context (card or account).
@@ -159,14 +174,14 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
 
       setNormalizedTxs(pipeline.transactions)
 
-      // Initialise drafts (empty classification for each tx)
+      // Initialise drafts — use handler-suggested values when available
       const initDrafts = new Map<string, Draft>()
       for (const tx of pipeline.transactions) {
         initDrafts.set(tx.external_id, {
-          category_id: '',
-          context: 'personal',
-          splits: null,
-          is_transfer: false,
+          category_id:  tx.suggested_category_id ?? '',
+          context:      tx.suggested_context     ?? 'personal',
+          splits:       tx.suggested_splits      ?? null,
+          is_transfer:  false,
           to_account_id: '',
         })
       }
@@ -183,11 +198,13 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
   const reparse = useCallback(() => {
     if (!file || !extractedText) return
     if (needsCard && !selectedCardId) return  // wait for card to be selected
+    const isMurilo = isMuriloHandler(source)
     const ctx = {
       userId,
-      creditCardId: needsCard ? selectedCardId : undefined,
-      accountId:    needsCard ? undefined : selectedAccountId,
-      statementMonth: needsCard ? statementMonth : undefined,
+      creditCardId:      needsCard || isMurilo ? selectedCardId      : undefined,
+      creditCardIdInter: isMurilo               ? selectedInterCardId : undefined,
+      accountId:         !needsCard || isMurilo ? selectedAccountId   : undefined,
+      statementMonth:    needsCard               ? statementMonth      : undefined,
     }
     try {
       const pipeline = runImportPipeline({ fileName: file.name, fileContent: extractedText, context: ctx })
@@ -195,17 +212,23 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
       setDrafts((prev) => {
         const next = new Map<string, Draft>()
         for (const tx of pipeline.transactions) {
-          next.set(tx.external_id, prev.get(tx.external_id) ?? { category_id: '', context: 'personal', splits: null, is_transfer: false, to_account_id: '' })
+          next.set(tx.external_id, prev.get(tx.external_id) ?? {
+            category_id:  tx.suggested_category_id ?? '',
+            context:      tx.suggested_context     ?? 'personal',
+            splits:       tx.suggested_splits      ?? null,
+            is_transfer:  false,
+            to_account_id: '',
+          })
         }
         return next
       })
     } catch {}
-  }, [file, extractedText, userId, needsCard, selectedCardId, selectedAccountId, statementMonth])
+  }, [file, extractedText, userId, source, needsCard, selectedCardId, selectedInterCardId, selectedAccountId, statementMonth])
 
   useEffect(() => {
     if (step === 'preview') reparse()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCardId, selectedAccountId, statementMonth])
+  }, [selectedCardId, selectedInterCardId, selectedAccountId, statementMonth])
 
   useEffect(() => {
     if (initialFile) handleFile(initialFile)
@@ -224,11 +247,13 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
     if (!file) return
     setSaving(true)
     try {
+      const isMurilo = isMuriloHandler(source)
       const ctx = {
         userId,
-        creditCardId: needsCard ? selectedCardId : undefined,
-        accountId:    needsCard ? undefined : selectedAccountId,
-        statementMonth: needsCard ? statementMonth : undefined,
+        creditCardId:      needsCard || isMurilo ? selectedCardId      : undefined,
+        creditCardIdInter: isMurilo               ? selectedInterCardId : undefined,
+        accountId:         !needsCard || isMurilo ? selectedAccountId   : undefined,
+        statementMonth:    needsCard               ? statementMonth      : undefined,
       }
 
       // Build classification map for the upsert
@@ -335,7 +360,31 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                 </div>
               </div>
 
-              {needsCard ? (
+              {isMuriloHandler(source) ? (
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Nubank Cartão</label>
+                    <select className="w-full text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none"
+                      value={selectedCardId} onChange={(e) => setSelectedCardId(e.target.value)}>
+                      {cards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Inter Cartão</label>
+                    <select className="w-full text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none"
+                      value={selectedInterCardId} onChange={(e) => setSelectedInterCardId(e.target.value)}>
+                      {cards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Nubank Conta</label>
+                    <select className="w-full text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none"
+                      value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)}>
+                      {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+              ) : needsCard ? (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-gray-500 block mb-1">Cartão</label>
