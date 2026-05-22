@@ -115,7 +115,11 @@ const CATEGORY_MAP: Record<string, string> = {
 function parseDateBR(raw: string): string | null {
   const m = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
   if (!m) return null
-  return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  const a = parseInt(m[1]), b = parseInt(m[2])
+  // If a > 12 it can only be the day (DD/MM); if b > 12 it can only be the day (MM/DD).
+  // When ambiguous (both ≤ 12) default to Brazilian convention (DD/MM).
+  const [day, month] = a > 12 ? [a, b] : b > 12 ? [b, a] : [a, b]
+  return `${m[3]}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
 function parseAmountBR(raw: string): number | null {
