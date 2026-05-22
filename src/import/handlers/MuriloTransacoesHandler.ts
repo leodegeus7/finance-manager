@@ -113,9 +113,9 @@ const CATEGORY_MAP: Record<string, string> = {
 }
 
 function parseDateBR(raw: string): string | null {
-  const m = raw.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  const m = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
   if (!m) return null
-  return `${m[3]}-${m[2]}-${m[1]}`
+  return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
 }
 
 function parseAmountBR(raw: string): number | null {
