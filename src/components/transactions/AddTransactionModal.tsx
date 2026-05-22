@@ -11,6 +11,7 @@ import { SplitParticipant } from '@/engine/types'
 import { SplitEditor } from '@/components/transactions/SplitEditor'
 import { formatMonth } from '@/lib/format'
 import { filterCategories } from '@/lib/db/categories'
+import { CategorySelect } from '@/components/ui/CategorySelect'
 
 interface Props {
   userId: string
@@ -218,14 +219,13 @@ export function AddTransactionModal({ userId, accounts, cards, categories, onClo
         {/* Category */}
         <div>
           <label className={labelCls}>Categoria <span className="text-gray-400">(opcional)</span></label>
-          <select className={inputCls} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">— sem categoria —</option>
-            {filterCategories(categories, kind === 'income' ? 'income' : 'expense').map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.parent_name ? `${c.parent_name} › ${c.name}` : c.name}
-              </option>
-            ))}
-          </select>
+          <CategorySelect
+            inputClassName={inputCls}
+            value={categoryId}
+            onChange={setCategoryId}
+            categories={filterCategories(categories, kind === 'income' ? 'income' : 'expense')}
+            placeholder="— sem categoria —"
+          />
         </div>
 
         {/* Context toggle */}
@@ -252,7 +252,6 @@ export function AddTransactionModal({ userId, accounts, cards, categories, onClo
           <SplitEditor
             splits={splits}
             payerUserId={userId}
-            payerName="Leonardo"
             onChange={setSplits}
           />
         </div>

@@ -6,6 +6,7 @@ import { Transaction, SplitParticipant } from '@/engine/types'
 import { formatCurrency, formatDate } from '@/lib/format'
 import { SplitEditor, splitBadge } from './SplitEditor'
 import { filterCategories } from '@/lib/db/categories'
+import { CategorySelect } from '@/components/ui/CategorySelect'
 
 interface Category {
   id: string
@@ -128,19 +129,15 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
               /* Classificação normal */
               <>
                 <div className="flex flex-wrap gap-2">
-                  <select
-                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 flex-1 min-w-0"
+                  <CategorySelect
+                    className="flex-1 min-w-0"
+                    inputClassName="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
                     value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
+                    onChange={setCategoryId}
+                    categories={filteredCategories}
+                    placeholder="Sem categoria"
                     autoFocus={!isTransfer}
-                  >
-                    <option value="">Sem categoria</option>
-                    {filteredCategories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.parent_name ? `${c.parent_name} › ${c.name}` : c.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
 
                   <select
                     className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
@@ -155,7 +152,6 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
                 <SplitEditor
                   splits={splits}
                   payerUserId={tx.user_id}
-                  payerName="Leonardo"
                   onChange={setSplits}
                 />
               </>

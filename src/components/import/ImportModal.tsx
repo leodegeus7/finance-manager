@@ -15,6 +15,7 @@ import { AccountRow, CardRow } from '@/lib/db/accounts'
 import { CategoryRow, filterCategories } from '@/lib/db/categories'
 import { SplitParticipant } from '@/engine/types'
 import { SplitEditor } from '@/components/transactions/SplitEditor'
+import { CategorySelect } from '@/components/ui/CategorySelect'
 import { formatMonth, formatCurrency, formatDate } from '@/lib/format'
 
 interface Props {
@@ -421,18 +422,14 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
 
                         {!transfer && (
                           <>
-                            <select
-                              className={selCls + ' flex-1 min-w-0'}
+                            <CategorySelect
+                              className="flex-1 min-w-0"
+                              inputClassName={selCls}
                               value={draft.category_id}
-                              onChange={(e) => updateDraft(tx.external_id, { category_id: e.target.value })}
-                            >
-                              <option value="">Sem categoria</option>
-                              {cats.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.parent_name ? `${c.parent_name} › ${c.name}` : c.name}
-                                </option>
-                              ))}
-                            </select>
+                              onChange={(id) => updateDraft(tx.external_id, { category_id: id })}
+                              categories={cats}
+                              placeholder="Sem categoria"
+                            />
 
                             <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs shrink-0">
                               {(['personal', 'professional'] as const).map((v) => (
@@ -449,7 +446,6 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                               <SplitEditor
                                 splits={draft.splits}
                                 payerUserId={userId}
-                                payerName="Leonardo"
                                 onChange={(s) => updateDraft(tx.external_id, { splits: s })}
                               />
                             )}
