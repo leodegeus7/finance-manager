@@ -150,11 +150,6 @@ function buildSplits(separacao: string): SplitParticipant[] | null {
   return null
 }
 
-function detectContaType(categoria: string): TransactionType {
-  if (categoria === 'D:Cartão') return 'credit_card_payment'
-  return 'expense'
-}
-
 // "2024/12" → "2024-12-01"  |  "2025/1" → "2025-01-01"
 function parseAnoMes(raw: string): string | undefined {
   const m = raw.trim().match(/^(\d{4})\/(\d{1,2})$/)
@@ -228,14 +223,12 @@ export class MuriloTransacoesHandler implements ImportHandler {
         ? (ctx.accountId ?? null)
         : null
 
-      // Transaction type
-      let txType: TransactionType = 'expense'
+      // Transaction type — D: = expense, R: = income (regra mais forte)
+      let txType: TransactionType
       if (tipo === 'Cartão') {
         txType = 'credit_card_purchase'
-      } else if (direction === 'income') {
-        txType = 'income'
       } else {
-        txType = detectContaType(categoria)
+        txType = direction === 'income' ? 'income' : 'expense'
       }
 
       const context = classe === 'Profissional' ? 'professional' : 'personal'
