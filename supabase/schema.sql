@@ -90,7 +90,100 @@ insert into categories (id, name, parent_id, is_essential) values
   ('cat-balada',  'Balada',       'cat-lazer', false),
   ('cat-bar',     'Bar',          'cat-lazer', false),
   ('cat-bebida',  'Bebida',       'cat-lazer', false),
-  ('cat-cinema',  'Cinema',       'cat-lazer', false)
+  ('cat-cinema',  'Cinema',       'cat-lazer', false),
+  -- novas categorias de despesa (top-level)
+  ('cat-carro',         'Carro',                  null,           false),
+  ('cat-clinica',       'Clínica',                null,           false),
+  ('cat-marketing',     'Marketing',              null,           false),
+  ('cat-cartao',        'Cartão',                 null,           false),
+  ('cat-cashback',      'Cashback',               null,           false),
+  ('cat-doacao',        'Doação',                 null,           false),
+  ('cat-emprest-cred',  'Empréstimo de Crédito',  null,           false),
+  ('cat-juridico',      'Jurídico',               null,           false),
+  ('cat-outros',        'Outros',                 null,           false),
+  ('cat-reajuste',      'Reajuste',               null,           false),
+  ('cat-saque',         'Saque',                  null,           false),
+  ('cat-seguro-vida',   'Seguro de vida',          null,           false),
+  ('cat-contabil',      'Serviços Contábeis',      null,           false),
+  ('cat-impostos',      'Impostos/Taxas',          null,           false),
+  ('cat-nao-lembro',    'Não Lembro',              null,           false),
+  ('cat-souvenirs',     'Souvenirs',               null,           false),
+  ('cat-apto-raul',     'Apartamento Raul',        null,           false),
+  ('cat-pag-terceiros', 'Pagamentos de terceiros', null,           false),
+  ('cat-artigos',       'Artigos aleatórios',      null,           false),
+  -- novas receitas (top-level)
+  ('inc-aluguel',        'Aluguel',               null,           false),
+  ('inc-emprestimo',     'Empréstimo',             null,           false),
+  ('inc-investimento',   'Investimento',           null,           false),
+  ('inc-outros',         'Outros',                 null,           false),
+  ('inc-reajuste',       'Reajuste',               null,           false),
+  ('inc-resgate',        'Resgate Investimento',   null,           false),
+  ('inc-pag-cartao',     'Pagamento Cartão',       null,           false),
+  ('inc-estorno-cartao', 'Estorno Cartão',         null,           false),
+  ('inc-receita-prod',   'Receita p/ Produtos',    null,           false),
+  ('inc-impostos',       'Impostos',               null,           false),
+  ('inc-venda-bem',      'Venda de bem pessoal',   null,           false),
+  ('inc-pag-terceiros',  'Pagamentos de terceiros',null,           false),
+  ('inc-premio',         'Prêmio',                 null,           false),
+  ('inc-recebimento',    'Recebimento',            null,           false),
+  -- subcategorias de Carro
+  ('cat-carro-ipva',        'IPVA',                       'cat-carro',     false),
+  ('cat-carro-aluguel',     'Aluguel',                    'cat-carro',     false),
+  ('cat-carro-combustivel', 'Combustível',                 'cat-carro',     true),
+  ('cat-carro-seguro',      'Seguro',                     'cat-carro',     false),
+  ('cat-carro-estac',       'Estacionamento',             'cat-carro',     false),
+  ('cat-carro-pedagio',     'Pedágios',                   'cat-carro',     false),
+  ('cat-carro-multa',       'Multas',                     'cat-carro',     false),
+  ('cat-carro-manut',       'Manutenção',                 'cat-carro',     false),
+  -- subcategorias de Clínica
+  ('cat-clin-aluguel',    'Aluguel',                    'cat-clinica',   false),
+  ('cat-clin-produtos',   'Produtos',                   'cat-clinica',   false),
+  ('cat-clin-mat-escrit', 'Materiais de escritório',    'cat-clinica',   false),
+  ('cat-clin-mat-med',    'Materiais Médicos',          'cat-clinica',   false),
+  ('cat-clin-mat-div',    'Materiais diversos extras',  'cat-clinica',   false),
+  ('cat-clin-comissao',   'ComissãoClínicaExterna',     'cat-clinica',   false),
+  -- subcategorias de Marketing
+  ('cat-mkt-agencia', 'Agência', 'cat-marketing', false),
+  ('cat-mkt-anuncio', 'Anúncio', 'cat-marketing', false),
+  -- subcategorias de Alimentação (novas)
+  ('cat-alim-cafe',      'Café',                  'cat-alim',  false),
+  ('cat-alim-delivery',  'Delivery',              'cat-alim',  false),
+  ('cat-alim-lanches',   'Lanches',               'cat-alim',  false),
+  ('cat-alim-marmitas',  'Marmitas',              'cat-alim',  false),
+  ('cat-alim-rest-dia',  'Restaurantes dia-dia',  'cat-alim',  false),
+  ('cat-alim-rest-laz',  'Restaurantes p/ Lazer', 'cat-alim',  false),
+  ('cat-alim-snacks',    'Snacks',                'cat-alim',  false),
+  -- subcategorias de Casa (novas)
+  ('cat-casa-manut', 'Manutenção', 'cat-casa', false),
+  -- subcategorias de Educação (novas)
+  ('cat-edu-ingles', 'Aula de Inglês', 'cat-edu', false),
+  ('cat-edu-curso',  'Curso',          'cat-edu', false),
+  -- subcategorias de Lazer (novas)
+  ('cat-lazer-aniv',    'Aniversário',   'cat-lazer', false),
+  ('cat-lazer-apostas', 'Apostas',       'cat-lazer', false),
+  ('cat-lazer-apps',    'Apps',          'cat-lazer', false),
+  ('cat-lazer-entret',  'Entretenimento','cat-lazer', false),
+  -- subcategorias de Viagem (novas)
+  ('cat-viagem-transp', 'Transporte', 'cat-viagem', false),
+  ('cat-viagem-hosp',   'Hospedagem', 'cat-viagem', false),
+  -- subcategorias de Saúde (novas)
+  ('cat-saude-academia', 'Academia',                  'cat-saude', false),
+  ('cat-saude-personal', 'Personal',                  'cat-saude', false),
+  ('cat-saude-farmacia', 'Farmácia',                  'cat-saude', true),
+  ('cat-saude-medico',   'Médico/Dentista/Psicólogo', 'cat-saude', false),
+  ('cat-saude-supl',     'Suplementos',               'cat-saude', false),
+  -- subcategorias de Pet (novas)
+  ('cat-pet-nala',    'Nala',   'cat-pet', false),
+  ('cat-pet-aquario', 'Aquário','cat-pet', false),
+  -- subcategorias de Recebimento (receita)
+  ('inc-receb-muller',  'Muller',  'inc-recebimento', false),
+  ('inc-receb-clinica', 'Clínica', 'inc-recebimento', false),
+  ('inc-receb-lucio',   'Lúcio',   'inc-recebimento', false),
+  ('inc-receb-qpele',   'QPele',   'inc-recebimento', false),
+  ('inc-receb-renove',  'Renove',  'inc-recebimento', false),
+  ('inc-receb-buffara', 'Buffara', 'inc-recebimento', false),
+  -- subcategorias de Pagamentos (receita)
+  ('inc-pag-mae-pai', 'Mãe/Pai', 'inc-pagto', false)
 on conflict (id) do nothing;
 
 -- ── ACCOUNTS ─────────────────────────────────────────────────
