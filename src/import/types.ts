@@ -65,6 +65,7 @@ export interface NormalizedTransaction {
   suggested_category_id?: string
   suggested_context?: TransactionContext
   suggested_splits?: SplitParticipant[] | null
+  suggested_to_account_id?: string | null
 }
 
 // Handler interface — every handler MUST implement these three

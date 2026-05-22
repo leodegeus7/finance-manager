@@ -222,7 +222,11 @@ export class MuriloTransacoesHandler implements ImportHandler {
         : null
       const isRdb = /rdb/i.test(descr)
       const account_id: string | null = tipo !== 'Cartão'
-        ? (isRdb ? (ctx.accountIdRdb ?? ctx.accountId ?? null) : (ctx.accountId ?? null))
+        ? (ctx.accountId ?? null)
+        : null
+      // For RDB transfers the "other side" is always the RDB account
+      const suggested_to_account_id: string | null = isRdb && tipo !== 'Cartão'
+        ? (ctx.accountIdRdb ?? null)
         : null
 
       // T: = transfer | D:Cartão = credit_card_payment | D: = expense | R: = income
@@ -266,6 +270,7 @@ export class MuriloTransacoesHandler implements ImportHandler {
         suggested_category_id: CATEGORY_MAP[categoria.trim()] ?? '',
         suggested_context: context,
         suggested_splits: suggestedSplits,
+        suggested_to_account_id,
       })
     }
 

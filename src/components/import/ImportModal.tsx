@@ -129,12 +129,13 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
       let resolvedCardId: string | undefined
       let resolvedInterCardId: string | undefined
       let resolvedAccountId: string | undefined
+      let resolvedRdbAccountId: string | undefined
 
       if (isMurilo) {
-        resolvedCardId      = cards.find((c) => c.bank === 'nubank')?.id  ?? cards[0]?.id ?? ''
-        resolvedInterCardId = cards.find((c) => c.bank === 'inter')?.id   ?? ''
-        resolvedAccountId   = accounts.find((a) => a.bank === 'nubank' && !/rdb/i.test(a.name))?.id ?? accounts[0]?.id ?? ''
-        const resolvedRdbAccountId = accounts.find((a) => /rdb/i.test(a.name))?.id ?? ''
+        resolvedCardId       = cards.find((c) => c.bank === 'nubank')?.id  ?? cards[0]?.id ?? ''
+        resolvedInterCardId  = cards.find((c) => c.bank === 'inter')?.id   ?? ''
+        resolvedAccountId    = accounts.find((a) => a.bank === 'nubank' && !/rdb/i.test(a.name))?.id ?? accounts[0]?.id ?? ''
+        resolvedRdbAccountId = accounts.find((a) => /rdb/i.test(a.name))?.id ?? ''
         setSelectedCardId(resolvedCardId)
         setSelectedInterCardId(resolvedInterCardId)
         setSelectedAccountId(resolvedAccountId)
@@ -182,11 +183,11 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
       const initDrafts = new Map<string, Draft>()
       for (const tx of pipeline.transactions) {
         initDrafts.set(tx.external_id, {
-          category_id:  tx.suggested_category_id ?? '',
-          context:      tx.suggested_context     ?? 'personal',
-          splits:       tx.suggested_splits      ?? null,
-          is_transfer:  tx.type === 'transfer',
-          to_account_id: '',
+          category_id:   tx.suggested_category_id   ?? '',
+          context:       tx.suggested_context        ?? 'personal',
+          splits:        tx.suggested_splits         ?? null,
+          is_transfer:   tx.type === 'transfer',
+          to_account_id: tx.suggested_to_account_id ?? '',
         })
       }
       setDrafts(initDrafts)
@@ -218,11 +219,11 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
         const next = new Map<string, Draft>()
         for (const tx of pipeline.transactions) {
           next.set(tx.external_id, prev.get(tx.external_id) ?? {
-            category_id:  tx.suggested_category_id ?? '',
-            context:      tx.suggested_context     ?? 'personal',
-            splits:       tx.suggested_splits      ?? null,
-            is_transfer:  tx.type === 'transfer',
-            to_account_id: '',
+            category_id:   tx.suggested_category_id   ?? '',
+            context:       tx.suggested_context        ?? 'personal',
+            splits:        tx.suggested_splits         ?? null,
+            is_transfer:   tx.type === 'transfer',
+            to_account_id: tx.suggested_to_account_id ?? '',
           })
         }
         return next
