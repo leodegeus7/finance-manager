@@ -181,7 +181,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
           category_id:  tx.suggested_category_id ?? '',
           context:      tx.suggested_context     ?? 'personal',
           splits:       tx.suggested_splits      ?? null,
-          is_transfer:  false,
+          is_transfer:  tx.type === 'transfer',
           to_account_id: '',
         })
       }
@@ -216,7 +216,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
             category_id:  tx.suggested_category_id ?? '',
             context:      tx.suggested_context     ?? 'personal',
             splits:       tx.suggested_splits      ?? null,
-            is_transfer:  false,
+            is_transfer:  tx.type === 'transfer',
             to_account_id: '',
           })
         }

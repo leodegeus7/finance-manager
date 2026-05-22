@@ -192,9 +192,6 @@ export class MuriloTransacoesHandler implements ImportHandler {
       const lugar     = row['Lugar']        ?? ''
       const separacao = row['SeparaçãoLeo'] ?? ''
 
-      // Skip internal transfers
-      if (categoria.startsWith('T:')) continue
-
       const isoDate = parseDateBR(rawDate)
       if (!isoDate) continue
 
@@ -203,7 +200,11 @@ export class MuriloTransacoesHandler implements ImportHandler {
       const amount = Math.abs(rawAmount)
       if (amount === 0) continue
 
-      const direction = categoria.startsWith('R:') ? 'income' : 'expense'
+      // R: = income, D: = expense, T: = direction by amount sign (outgoing = expense)
+      const isTransfer = categoria.startsWith('T:')
+      const direction = categoria.startsWith('R:') ? 'income'
+        : isTransfer ? (rawAmount >= 0 ? 'income' : 'expense')
+        : 'expense'
       const signedAmount = direction === 'income' ? amount : -amount
 
       // Deduplication — occurrence counter for identical rows
@@ -223,9 +224,11 @@ export class MuriloTransacoesHandler implements ImportHandler {
         ? (ctx.accountId ?? null)
         : null
 
-      // D: = expense (exceto D:Cartão = credit_card_payment), R: = income, T: = skip
+      // T: = transfer | D:Cartão = credit_card_payment | D: = expense | R: = income
       let txType: TransactionType
-      if (tipo === 'Cartão') {
+      if (isTransfer) {
+        txType = 'transfer'
+      } else if (tipo === 'Cartão') {
         txType = 'credit_card_purchase'
       } else if (direction === 'income') {
         txType = 'income'
