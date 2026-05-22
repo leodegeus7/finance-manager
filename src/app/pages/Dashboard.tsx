@@ -22,14 +22,12 @@ import { useTransactions } from '@/lib/hooks/useTransactions'
 import { useNetWorth } from '@/lib/hooks/useNetWorth'
 import { useUser } from '@/lib/UserContext'
 
-const MONTH = '2024-04-01'
-
 export function Dashboard() {
-  const { userId, userName } = useUser()
-  const { transactions, loading: txLoading } = useTransactions(MONTH, userId)
-  const { timeline, loading: nwLoading }     = useNetWorth(userId, MONTH)
+  const { userId, userName, month } = useUser()
+  const { transactions, loading: txLoading } = useTransactions(month, userId)
+  const { timeline, loading: nwLoading }     = useNetWorth(userId, month)
 
-  const monthTxs   = useMemo(() => applyFilters(transactions, { month: MONTH }), [transactions])
+  const monthTxs   = useMemo(() => applyFilters(transactions, { month }), [transactions, month])
   const cashFlow   = useMemo(() => computeCashFlow(monthTxs), [monthTxs])
   const categories = useMemo(() => computeCategoryBreakdown(monthTxs), [monthTxs])
   const netWorth   = latestNetWorth(timeline)
@@ -43,7 +41,7 @@ export function Dashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-400 mt-0.5">{userName} · {formatMonth(MONTH)}</p>
+          <p className="text-sm text-gray-400 mt-0.5">{userName} · {formatMonth(month)}</p>
         </div>
       </div>
 
