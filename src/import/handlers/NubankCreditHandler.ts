@@ -48,6 +48,7 @@ export class NubankCreditHandler implements ImportHandler {
     }
 
     const results: NormalizedTransaction[] = []
+    const occurrences = new Map<string, number>()
 
     for (const row of rows) {
       const rawDate = row['date']
@@ -67,7 +68,13 @@ export class NubankCreditHandler implements ImportHandler {
       const signedAmount = -amount
 
       // Rule Handler 2: external_id = hash(date + title + amount + credit_card_id)
-      const externalId = hash(isoDate, title, amount, ctx.creditCardId)
+      // For duplicate rows (same date+title+amount in the same file), append occurrence index
+      const occKey = `${isoDate}|${title}|${amount}`
+      const occCount = (occurrences.get(occKey) ?? 0) + 1
+      occurrences.set(occKey, occCount)
+      const externalId = occCount === 1
+        ? hash(isoDate, title, amount, ctx.creditCardId)
+        : hash(isoDate, title, amount, ctx.creditCardId, occCount)
 
       // statement_month comes from caller context (the file represents a specific invoice)
       // competency_month = month of the actual purchase date
