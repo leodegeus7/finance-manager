@@ -223,12 +223,16 @@ export class MuriloTransacoesHandler implements ImportHandler {
         ? (ctx.accountId ?? null)
         : null
 
-      // Transaction type — D: = expense, R: = income (regra mais forte)
+      // D: = expense (exceto D:Cartão = credit_card_payment), R: = income, T: = skip
       let txType: TransactionType
       if (tipo === 'Cartão') {
         txType = 'credit_card_purchase'
+      } else if (direction === 'income') {
+        txType = 'income'
+      } else if (categoria === 'D:Cartão') {
+        txType = 'credit_card_payment'
       } else {
-        txType = direction === 'income' ? 'income' : 'expense'
+        txType = 'expense'
       }
 
       const context = classe === 'Profissional' ? 'professional' : 'personal'
