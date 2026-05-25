@@ -238,10 +238,12 @@ export class MuriloTransacoesHandler implements ImportHandler {
         : null
 
       // T: = transfer | D:Cartão = credit_card_payment | D: = expense | R: = income
+      // Note: tipo=Cartão only means credit_card_purchase when it's an expense.
+      // Income rows on a card (e.g. R:Pagamento Cartão) are plain income.
       let txType: TransactionType
       if (isTransfer) {
         txType = 'transfer'
-      } else if (tipo === 'Cartão') {
+      } else if (tipo === 'Cartão' && direction === 'expense') {
         txType = 'credit_card_purchase'
       } else if (direction === 'income') {
         txType = 'income'
