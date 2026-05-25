@@ -204,9 +204,10 @@ export class MuriloTransacoesHandler implements ImportHandler {
       const amount = Math.abs(rawAmount)
       if (amount === 0) continue
 
-      // D:Cartão = credit card invoice payment — skip, the purchases are already
-      // imported from the card statement and we don't want to double-count.
-      if (categoria.trim() === 'D:Cartão') continue
+      // D:Cartão = invoice payment out; R:Pagamento Cartão = payment received on card.
+      // Both are internal card-cycle entries — skip to avoid double-counting.
+      const cat = categoria.trim()
+      if (cat === 'D:Cartão' || cat === 'R:Pagamento Cartão') continue
 
       // R: = income, D: = expense, T: = direction by amount sign (outgoing = expense)
       const isTransfer = categoria.startsWith('T:')
