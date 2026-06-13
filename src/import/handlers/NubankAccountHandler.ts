@@ -19,6 +19,10 @@ import { parseBrazilianDate, toCompetencyMonth } from '../utils/date'
 // Order matters — first match wins
 const TYPE_RULES: Array<{ pattern: RegExp; type: TransactionType }> = [
   { pattern: /fatura/i,                type: 'credit_card_payment' },
+  // "Pagamento de boleto efetuado - BANCO C6 S.A." (and similar for other
+  // card issuers) is the boleto used to pay the credit card invoice —
+  // treat it the same as a "fatura" payment, not a generic bill.
+  { pattern: /boleto.*(banco c6|c6 bank|c6 s\.?a\.?|banco inter\b|nu pagamentos|nubank)/i, type: 'credit_card_payment' },
   { pattern: /aplica[çc][aã]o.*(rdb|cdb|tesouro|fundo)/i, type: 'investment_contribution' },
   { pattern: /resgate.*(rdb|cdb|tesouro|fundo)/i,          type: 'investment_withdrawal' },
   { pattern: /pix enviado|pix saída/i, type: 'expense' },
