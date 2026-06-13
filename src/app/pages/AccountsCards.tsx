@@ -39,6 +39,10 @@ export function AccountsCards() {
       .catch(() => {/* ignore */})
   }, [userId, month])
 
+  // Accordion: show only top accounts by default
+  const [showAllAccounts, setShowAllAccounts] = useState(false)
+  const ACCOUNTS_PREVIEW_COUNT = 2
+
   // Add account form
   const [showAddAccount, setShowAddAccount] = useState(false)
   const [accName, setAccName]       = useState('')
@@ -129,8 +133,11 @@ export function AccountsCards() {
       latestMonth:   latestEntries.get(acc.id)?.month,
     }))
     .filter((acc) => isActive(latestEntries.get(acc.id), acc.balance))
+    .sort((a, b) => b.latestBalance - a.latestBalance)
 
   const totalBalance = enrichedAccounts.reduce((s, a) => s + a.latestBalance, 0)
+  const visibleAccounts = showAllAccounts ? enrichedAccounts : enrichedAccounts.slice(0, ACCOUNTS_PREVIEW_COUNT)
+  const hiddenAccountsCount = enrichedAccounts.length - ACCOUNTS_PREVIEW_COUNT
 
   if (error) return (
     <div className="p-8 text-red-600 text-sm">Erro ao carregar contas: {error}</div>
@@ -218,7 +225,7 @@ export function AccountsCards() {
           ) : enrichedAccounts.length === 0 ? (
             <Card padding="md"><p className="text-sm text-gray-400 text-center py-2">Nenhuma conta com saldo cadastrada</p></Card>
           ) : (
-            enrichedAccounts.map((acc) => (
+            visibleAccounts.map((acc) => (
               <Card key={acc.id} padding="md">
                 <div className="flex items-center justify-between">
                   <div>
@@ -307,6 +314,16 @@ export function AccountsCards() {
                 )}
               </Card>
             ))
+          )}
+
+          {/* Accordion toggle */}
+          {!loading && hiddenAccountsCount > 0 && (
+            <button
+              onClick={() => setShowAllAccounts((v) => !v)}
+              className="w-full text-xs font-medium text-gray-500 border border-gray-200 rounded-xl py-2 hover:bg-gray-50 transition-colors"
+            >
+              {showAllAccounts ? 'Mostrar menos' : `Mostrar todas (${enrichedAccounts.length})`}
+            </button>
           )}
         </div>
       </section>

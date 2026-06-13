@@ -493,7 +493,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-400 tabular-nums">{formatDate(tx.date)}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <p className="text-sm font-medium text-gray-900 truncate">{tx.description}</p>
+                          <p className="text-sm font-medium text-gray-900 truncate" title={tx.description}>{tx.description}</p>
                           {tx.installment_current != null && tx.installment_total != null && (
                             <span className="text-xs px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-500 font-medium tabular-nums shrink-0">
                               {tx.installment_current}/{tx.installment_total}
