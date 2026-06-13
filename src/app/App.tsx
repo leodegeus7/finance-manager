@@ -4,14 +4,16 @@ import { Dashboard }     from './pages/Dashboard'
 import { Transactions }  from './pages/Transactions'
 import { AccountsCards } from './pages/AccountsCards'
 import { NetWorth }      from './pages/NetWorth'
+import { MonthlyChecklist } from './pages/MonthlyChecklist'
 import { UserProvider, useUser } from '@/lib/UserContext'
 
-// UI Rule 2.1 — max 4 areas, accessible in 1–2 clicks
+// UI Rule 2.1 — max 4 areas, accessible in 1–2 clicks (5 com o Checklist)
 const NAV = [
   { to: '/',           label: 'Dashboard',        icon: '⊞' },
   { to: '/transacoes', label: 'Transações',        icon: '↕' },
   { to: '/contas',     label: 'Contas & Cartões',  icon: '⬡' },
   { to: '/patrimonio', label: 'Patrimônio',         icon: '◈' },
+  { to: '/checklist',  label: 'Checklist',         icon: '☑' },
 ]
 
 /** Last N months as YYYY-MM-01 values */
@@ -148,6 +150,7 @@ function AppShell() {
           <Route path="/transacoes"  element={<Transactions />} />
           <Route path="/contas"      element={<AccountsCards />} />
           <Route path="/patrimonio"  element={<NetWorth />} />
+          <Route path="/checklist"   element={<MonthlyChecklist />} />
         </Routes>
       </main>
     </div>
