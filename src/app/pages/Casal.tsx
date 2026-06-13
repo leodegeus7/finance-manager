@@ -111,14 +111,18 @@ export function Casal() {
     () => monthRange(COUPLE_START_MONTH, month).reverse(),
     [month],
   )
-  const [history, setHistory] = useState<CoupleMonthSummary[]>([])
+  const [history, setHistory] = useState<(CoupleMonthSummary & { transactions: Transaction[] })[]>([])
   const [historyLoading, setHistoryLoading] = useState(true)
+  const [selectedHistoryMonth, setSelectedHistoryMonth] = useState<string | null>(null)
 
   useEffect(() => {
     setHistoryLoading(true)
     Promise.all(
       historyMonths.map((m) =>
-        fetchSharedTransactions(m).then((txs) => computeCoupleMonthSummary(txs, m)),
+        fetchSharedTransactions(m).then((txs) => ({
+          ...computeCoupleMonthSummary(txs, m),
+          transactions: getSharedExpenses(txs, m),
+        })),
       ),
     )
       .then(setHistory)
@@ -126,6 +130,24 @@ export function Casal() {
       .finally(() => setHistoryLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [historyMonths.join(',')])
+
+  const handleHistoryTxUpdate = (id: string, patch: Partial<Transaction> & { notes?: string | null }) => {
+    setHistory((prev) => prev.map((h) => ({
+      ...h,
+      transactions: h.transactions.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    })))
+  }
+  const handleHistoryTxDelete = (id: string) => {
+    setHistory((prev) => prev.map((h) => ({
+      ...h,
+      transactions: h.transactions.filter((t) => t.id !== id),
+    })))
+  }
+
+  const selectedHistory = useMemo(
+    () => history.find((h) => h.month === selectedHistoryMonth) ?? null,
+    [history, selectedHistoryMonth],
+  )
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
@@ -208,9 +230,13 @@ export function Casal() {
               <Card key={h.month} padding="md">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm font-semibold text-gray-900 capitalize">{formatMonth(h.month)}</p>
-                  <p className="text-base font-bold text-gray-900 tabular-nums">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedHistoryMonth(h.month)}
+                    className="text-base font-bold text-gray-900 tabular-nums hover:underline"
+                  >
                     {formatCurrency(h.total)}
-                  </p>
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm">
@@ -248,6 +274,18 @@ export function Casal() {
           onClose={() => setSelectedCategory(null)}
           onUpdate={handleTxUpdate}
           onDelete={handleTxDelete}
+        />
+      )}
+
+      {selectedHistory && (
+        <CategoryTransactionsModal
+          categoryName={`Gastos compartilhados — ${formatMonth(selectedHistory.month)}`}
+          month={selectedHistory.month}
+          transactions={selectedHistory.transactions}
+          userNames={USER_NAMES}
+          onClose={() => setSelectedHistoryMonth(null)}
+          onUpdate={handleHistoryTxUpdate}
+          onDelete={handleHistoryTxDelete}
         />
       )}
 
