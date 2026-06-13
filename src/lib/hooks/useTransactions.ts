@@ -18,8 +18,8 @@ export function useTransactions(month: string, userId: string) {
 
   useEffect(() => { load() }, [load])
 
-  const handleUpdate = useCallback(async (id: string, patch: Partial<Transaction>) => {
-    setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
+  const handleUpdate = useCallback(async (id: string, patch: Partial<Transaction> & { notes?: string | null }) => {
+    setTransactions((prev) => prev.map((t) => (t.id === id ? ({ ...t, ...patch } as Transaction) : t)))
 
     try {
       await updateTransaction(id, {

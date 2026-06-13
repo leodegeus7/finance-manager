@@ -38,7 +38,7 @@ export interface Transaction {
 
   external_id: string
   source: string
-  notes?: string
+  notes?: string | null
 }
 
 // ─── Splits ───────────────────────────────────────────────────

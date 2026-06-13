@@ -15,6 +15,7 @@ export interface ImportClassification {
   splits?: SplitParticipant[] | null
   is_transfer?: boolean      // override type → 'transfer', clears category/splits
   to_account_id?: string     // destination account for transfers
+  notes?: string | null      // custom description set by the user during classification
 }
 
 /**
@@ -58,6 +59,7 @@ export async function upsertTransactions(
       installment_total:   tx.installment_total ?? null,
       external_id:         tx.external_id,
       source:              tx.source,
+      notes:               clf?.notes || null,
     }
   })
 

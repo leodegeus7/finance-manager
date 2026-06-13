@@ -14,7 +14,7 @@ interface Props {
   transactions: Transaction[]
   categories: Category[]
   accounts?: Account[]
-  onUpdate: (id: string, patch: Partial<Transaction>) => void
+  onUpdate: (id: string, patch: Partial<Transaction> & { notes?: string | null }) => void
   onDelete?: (id: string) => void
 }
 
@@ -33,7 +33,7 @@ export function TransactionList({ transactions, categories, accounts, onUpdate, 
     [transactions],
   )
 
-  const handleUpdate = useCallback((id: string, patch: Partial<Transaction>) => {
+  const handleUpdate = useCallback((id: string, patch: Partial<Transaction> & { notes?: string | null }) => {
     // Always apply the primary update immediately
     onUpdate(id, patch)
 

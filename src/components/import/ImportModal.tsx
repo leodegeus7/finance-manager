@@ -75,6 +75,7 @@ interface Draft {
   splits: SplitParticipant[] | null
   is_transfer: boolean
   to_account_id: string
+  notes: string
 }
 
 function txIsTransfer(tx: NormalizedTransaction) {
@@ -188,6 +189,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
           splits:        tx.suggested_splits         ?? null,
           is_transfer:   tx.type === 'transfer',
           to_account_id: tx.suggested_to_account_id ?? '',
+          notes:         '',
         })
       }
       setDrafts(initDrafts)
@@ -224,6 +226,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
             splits:        tx.suggested_splits         ?? null,
             is_transfer:   tx.type === 'transfer',
             to_account_id: tx.suggested_to_account_id ?? '',
+            notes:         '',
           })
         }
         return next
@@ -313,6 +316,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
           splits: d.splits,
           is_transfer: d.is_transfer,
           to_account_id: d.to_account_id || undefined,
+          notes: d.notes.trim() || null,
         })
       }
 
@@ -503,6 +507,15 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                         {isIncome ? '+' : '-'}{formatCurrency(tx.amount)}
                       </span>
                     </div>
+
+                    {/* Row 1.5: custom description */}
+                    <input
+                      type="text"
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 w-full"
+                      placeholder="Descrição customizada (opcional)"
+                      value={draft.notes}
+                      onChange={(e) => updateDraft(tx.external_id, { notes: e.target.value })}
+                    />
 
                     {/* Row 2: transfer toggle + classification */}
                     {tx.type !== 'credit_card_payment' && (

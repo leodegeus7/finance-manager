@@ -47,7 +47,7 @@ function toTransaction(row: Row): Transaction {
     installment_total:    row.installment_total as number | undefined,
     external_id:          row.external_id as string,
     source:               row.source as string,
-    notes:                row.notes as string | undefined,
+    notes:                row.notes as string | null | undefined,
   }
 }
 
@@ -144,7 +144,7 @@ export interface TransactionPatch {
   scope?: string
   splits?: SplitParticipant[] | null
   to_account_id?: string | null
-  notes?: string
+  notes?: string | null
 }
 
 /** Auto-derives `scope` from splits when splits key is present */

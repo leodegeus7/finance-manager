@@ -51,6 +51,8 @@ function isInvoicePayment(desc: string): boolean {
     lower.includes('pagamento fatura') ||
     lower.includes('pagamento de fatura') ||
     lower.includes('pagto fatura') ||
+    lower.includes('pag fatura') ||
+    lower.includes('pag de fatura') ||
     lower.startsWith('pagamento ')
   )
 }

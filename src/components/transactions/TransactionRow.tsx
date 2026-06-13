@@ -23,7 +23,7 @@ interface Props {
   tx: Transaction
   categories: Category[]
   accounts?: Account[]
-  onUpdate: (id: string, patch: Partial<Pick<Transaction, 'type' | 'category_id' | 'context' | 'scope' | 'splits' | 'notes' | 'to_account_id'>>) => void
+  onUpdate: (id: string, patch: Partial<Pick<Transaction, 'type' | 'category_id' | 'context' | 'scope' | 'splits' | 'to_account_id'>> & { notes?: string | null }) => void
   onDelete?: (id: string) => void
 }
 
@@ -33,6 +33,7 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
   const [context, setContext] = useState(tx.context)
   const [splits, setSplits] = useState<SplitParticipant[] | null>(tx.splits ?? null)
   const [toAccountId, setToAccountId] = useState(tx.to_account_id ?? '')
+  const [notes, setNotes] = useState(tx.notes ?? '')
   const [isTransferEdit, setIsTransferEdit] = useState(
     tx.type === 'transfer' || tx.type === 'credit_card_payment'
   )
@@ -48,7 +49,7 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [editing, categoryId, context, splits])
+  }, [editing, categoryId, context, splits, notes])
 
   function handleSave() {
     setEditing(false)
@@ -58,6 +59,7 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
         category_id: undefined,
         splits: null,
         to_account_id: toAccountId || null,
+        notes: notes.trim() || null,
       })
     } else {
       const inferredType = tx.direction === 'income' ? 'income' : 'expense'
@@ -67,6 +69,7 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
         context,
         splits,
         to_account_id: null,
+        notes: notes.trim() || null,
       })
     }
   }
@@ -95,10 +98,26 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
 
       {/* Description + category */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-900 truncate">{tx.description}</p>
+        {tx.notes ? (
+          <>
+            <p className="text-sm font-medium text-gray-900 truncate">{tx.notes}</p>
+            <p className="text-xs text-gray-400 truncate">{tx.description}</p>
+          </>
+        ) : (
+          <p className="text-sm font-medium text-gray-900 truncate">{tx.description}</p>
+        )}
 
         {editing ? (
           <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
+            {/* Descrição customizada */}
+            <input
+              type="text"
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 w-full"
+              placeholder="Descrição customizada (opcional)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+
             {/* Toggle transferência / despesa-receita */}
             <button
               onClick={() => setIsTransferEdit((v) => !v)}
