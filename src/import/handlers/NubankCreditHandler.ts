@@ -5,18 +5,36 @@
 // Source:  'nubank_credit'
 //
 // Rules (from business_rules § Handler 2):
-//   - Always expense
-//   - signed_amount = -amount (amount in CSV is always positive)
-//   - type = 'credit_card_purchase'
+//   - Purchases (positive amount) → expense, type = 'credit_card_purchase'
+//   - Refunds/estornos (negative amount) → income, type = 'income'
+//     (reduces the invoice total, same as CardTransactionsModal's "Total fatura")
+//   - "Pagamento recebido" rows are skipped — that's the payment of the
+//     PREVIOUS invoice, tracked separately via NubankAccountHandler
+//     (credit_card_payment), so importing it here would double count it
+//     under the wrong statement_month.
+//   - signed_amount = -amount for purchases, +amount for refunds
 //   - external_id = hash(date + title + amount + credit_card_id)
 //   - statement_month is set by caller (HandlerContext.statementMonth)
 //     because the CSV itself is a monthly invoice file
+//
+// Note: Nubank exports negative amounts with a space after the minus sign
+// (e.g. "- 84,97"), which `parseFloat` cannot parse directly — the space
+// must be stripped before parsing.
 // ============================================================
 
 import { ImportHandler, HandlerContext, NormalizedTransaction, RawRow } from '../types'
 import { parseCSV } from '../utils/csv'
 import { toCompetencyMonth } from '../utils/date'
 import { hash } from '../utils/hash'
+
+/**
+ * Returns true if the description looks like an invoice payment
+ * ("Pagamento recebido") — these belong to the PREVIOUS invoice and are
+ * tracked via NubankAccountHandler, so they must be skipped here.
+ */
+function isInvoicePayment(desc: string): boolean {
+  return /pagamento\s+recebido/i.test(desc.trim())
+}
 
 export class NubankCreditHandler implements ImportHandler {
   readonly source = 'nubank_credit'
@@ -61,20 +79,31 @@ export class NubankCreditHandler implements ImportHandler {
       const isoDate = rawDate.trim()
       if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) continue
 
-      const amount = parseFloat(rawAmount.replace(',', '.'))
-      if (isNaN(amount) || amount <= 0) continue
+      // Strip whitespace (Nubank writes negatives as "- 84,97") before
+      // converting the decimal comma to a dot.
+      const rawNum = rawAmount.trim().replace(/\s/g, '').replace(',', '.')
+      const amount = parseFloat(rawNum)
+      if (isNaN(amount) || amount === 0) continue
 
-      // Rule Handler 2: always expense, signed_amount = -amount
-      const signedAmount = -amount
+      const isCredit = amount < 0
+      const absAmount = Math.abs(amount)
+
+      // "Pagamento recebido" = payment of the PREVIOUS invoice, tracked via
+      // NubankAccountHandler — skip to avoid double counting.
+      if (isCredit && isInvoicePayment(title)) continue
+
+      // Rule Handler 2: purchases are expenses (signed_amount = -amount);
+      // refunds/estornos are income (signed_amount = +amount), reducing the invoice total.
+      const signedAmount = isCredit ? absAmount : -absAmount
 
       // Rule Handler 2: external_id = hash(date + title + amount + credit_card_id)
       // For duplicate rows (same date+title+amount in the same file), append occurrence index
-      const occKey = `${isoDate}|${title}|${amount}`
+      const occKey = `${isoDate}|${title}|${absAmount}`
       const occCount = (occurrences.get(occKey) ?? 0) + 1
       occurrences.set(occKey, occCount)
       const externalId = occCount === 1
-        ? hash(isoDate, title, amount, ctx.creditCardId)
-        : hash(isoDate, title, amount, ctx.creditCardId, occCount)
+        ? hash(isoDate, title, absAmount, ctx.creditCardId)
+        : hash(isoDate, title, absAmount, ctx.creditCardId, occCount)
 
       // statement_month comes from caller context (the file represents a specific invoice)
       // competency_month = month of the actual purchase date
@@ -88,10 +117,10 @@ export class NubankCreditHandler implements ImportHandler {
         competency_month: toCompetencyMonth(isoDate),
         statement_month: statementMonth,  // Rule 3.2
 
-        amount,
+        amount: absAmount,
         signed_amount: signedAmount,
-        direction: 'expense',              // Rule Handler 2: always expense
-        type: 'credit_card_purchase',
+        direction: isCredit ? 'income' : 'expense',
+        type: isCredit ? 'income' : 'credit_card_purchase',
 
         description: title,
 
@@ -146,6 +175,26 @@ export class NubankCreditHandler implements ImportHandler {
 //     scope: 'individual',
 //   },
 // ]
+//
+// REFUND/ESTORNO EXAMPLE — negative amount, Nubank writes "- 84,97":
+// 2024-03-22,Uber - NuPay,"- 84,97"
+//   →
+//   {
+//     source: 'nubank_credit',
+//     external_id: hash('2024-03-22', 'Uber - NuPay', 84.90, 'cc-nubank-uuid'),
+//     date: '2024-03-22',
+//     competency_month: '2024-03-01',
+//     statement_month:  '2024-04-01',
+//     amount: 84.97,
+//     signed_amount: 84.97,             // positive → reduces invoice total
+//     direction: 'income',
+//     type: 'income',
+//     description: 'Uber - NuPay',
+//     context: 'personal',
+//     scope: 'individual',
+//   }
+//
+// "Pagamento recebido" rows are skipped entirely (see isInvoicePayment).
 //
 // NOTE: The invoice PAYMENT (credit_card_payment) comes from the
 // Nubank ACCOUNT handler when the user pays the bill via Pix/Boleto.
