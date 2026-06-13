@@ -13,7 +13,7 @@ import { Card, CardTitle } from '@/components/ui/Card'
 import { DeltaBadge } from '@/components/ui/Amount'
 import { NetWorthChart } from '@/components/charts/NetWorthChart'
 import { formatCurrency, formatMonth } from '@/lib/format'
-import { buildNetWorthBreakdown, latestNetWorth } from '@/investments/NetWorthEngine'
+import { buildNetWorthBreakdown, netWorthForMonth } from '@/investments/NetWorthEngine'
 import { useNetWorth } from '@/lib/hooks/useNetWorth'
 import { useUser } from '@/lib/UserContext'
 import { computeSplitReport } from '@/engine/SplitEngine'
@@ -22,7 +22,7 @@ import { useState, useEffect } from 'react'
 
 export function NetWorth() {
   const { userId, userName, month } = useUser()
-  const { timeline, assets, accountsWithBalance, loading, error } = useNetWorth(userId, month)
+  const { timeline, assets, enrichedAccounts, loading, error } = useNetWorth(userId, month)
 
   // Split transactions: fetch by both competency_month AND statement_month
   const [splitTxs, setSplitTxs] = useState<import('@/engine/types').Transaction[]>([])
@@ -35,17 +35,16 @@ export function NetWorth() {
       .finally(() => setTxLoading(false))
   }, [month, userId])
 
-  // Only include accounts that have data for the selected month
-  const accountBalances = accountsWithBalance
-    .filter((a) => a.historical_balance != null)
-    .map((a) => ({
-      account_id:   a.id,
-      account_name: a.name,
-      balance:      a.historical_balance!,
-    }))
+  // Same accounts/balances shown in Contas & Cartões: latest balance entered
+  // manually, up to the selected month, for active accounts.
+  const accountBalances = enrichedAccounts.map((a) => ({
+    account_id:   a.id,
+    account_name: a.name,
+    balance:      a.latestBalance,
+  }))
 
   const breakdown = buildNetWorthBreakdown(accountBalances, assets)
-  const latest    = latestNetWorth(timeline)
+  const latest    = netWorthForMonth(timeline, month)
 
   const splitReport = useMemo(
     () => computeSplitReport(splitTxs, userId),
@@ -105,22 +104,19 @@ export function NetWorth() {
             Contas
           </h2>
           <div className="space-y-2">
-            {accountsWithBalance
-              .filter((acc) => acc.historical_balance != null)
-              .map((acc) => (
-                <Card key={acc.id} padding="sm">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{acc.name}</p>
-                      <p className="text-xs text-gray-400 capitalize">{acc.bank}</p>
-                    </div>
-                    <p className="text-base font-bold tabular-nums text-gray-900">
-                      {formatCurrency(acc.historical_balance!)}
-                    </p>
+            {enrichedAccounts.map((acc) => (
+              <Card key={acc.id} padding="sm">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{acc.name}</p>
+                    <p className="text-xs text-gray-400 capitalize">{acc.bank}</p>
                   </div>
-                </Card>
-              ))
-            }
+                  <p className="text-base font-bold tabular-nums text-gray-900">
+                    {formatCurrency(acc.latestBalance)}
+                  </p>
+                </div>
+              </Card>
+            ))}
           </div>
         </section>
 

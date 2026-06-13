@@ -81,6 +81,17 @@ export function latestNetWorth(timeline: NetWorthSnapshot[]): NetWorthSnapshot |
 }
 
 /**
+ * Returns the net worth snapshot for a specific month from a timeline,
+ * falling back to the latest available snapshot if that month isn't present.
+ * Used so the Dashboard/Patrimônio "Patrimônio total" reflects the month the
+ * user has selected (matching Contas & Cartões), not just the globally most
+ * recent one.
+ */
+export function netWorthForMonth(timeline: NetWorthSnapshot[], month: string): NetWorthSnapshot | null {
+  return timeline.find((s) => s.month === month) ?? latestNetWorth(timeline)
+}
+
+/**
  * Computes the net worth for a specific past month by summing:
  *   - account balances AS OF that month (from transaction history)
  *   - asset values AS OF that month (from asset movement history)

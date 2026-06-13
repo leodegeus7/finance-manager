@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { Asset } from '@/investments/types'
+import { fetchAccounts, AccountRow } from '@/lib/db/accounts'
 
 export interface AccountHistoryRow {
   account_id: string
@@ -38,16 +39,16 @@ export interface AccountLatestEntry {
 }
 
 /**
- * Returns the most recent balance + month per account up to (and including)
- * upToMonth, plus the global max month across all accounts.
+ * Pure helper: given a list of history rows, returns the most recent
+ * balance + month per account up to (and including) upToMonth, plus the
+ * global max month across all rows.
  * upToMonth: YYYY-MM-01 — when provided, entries after this month are ignored
- * for the per-account latest, but still count towards globalMaxMonth.
+ * for the per-account latest, but still count towards maxMonth.
  */
-export async function fetchLatestAccountBalances(
-  userId: string,
+export function computeLatestAccountBalances(
+  rows: AccountHistoryRow[],
   upToMonth?: string,
-): Promise<{ entries: Map<string, AccountLatestEntry>; maxMonth: string }> {
-  const rows = await fetchAccountBalanceHistory(userId)
+): { entries: Map<string, AccountLatestEntry>; maxMonth: string } {
   const entries = new Map<string, AccountLatestEntry>()
   let maxMonth = ''
 
@@ -64,6 +65,18 @@ export async function fetchLatestAccountBalances(
 }
 
 /**
+ * Returns the most recent balance + month per account up to (and including)
+ * upToMonth, plus the global max month across all accounts.
+ */
+export async function fetchLatestAccountBalances(
+  userId: string,
+  upToMonth?: string,
+): Promise<{ entries: Map<string, AccountLatestEntry>; maxMonth: string }> {
+  const rows = await fetchAccountBalanceHistory(userId)
+  return computeLatestAccountBalances(rows, upToMonth)
+}
+
+/**
  * An account is considered active if it has no history yet (newly created /
  * never tracked), or its last recorded balance is positive and recent
  * (within 12 months of `viewMonth`).
@@ -76,6 +89,45 @@ export function isAccountActive(entry: AccountLatestEntry | undefined, viewMonth
   const [ey, em] = entry.month.split('-').map(Number)
   const monthsAgo = (vy - ey) * 12 + (vm - em)
   return monthsAgo <= 12
+}
+
+export interface EnrichedAccount extends AccountRow {
+  /** Latest balance recorded in account_balance_history (up to `month`), falling back to the account's static `balance` field. */
+  latestBalance: number
+  /** Month of the latest recorded balance, if any. */
+  latestMonth?: string
+}
+
+/**
+ * Single source of truth for "what's the current balance of this account".
+ * Combines an account's static `balance` field with the latest manually
+ * entered `account_balance_history` snapshot (up to `month`), and filters
+ * out inactive/closed accounts (see `isAccountActive`). Sorted by balance
+ * descending. Used by Contas & Cartões, Dashboard and Patrimônio so the
+ * "patrimônio" figures match everywhere.
+ */
+export function enrichAccounts(
+  accounts: AccountRow[],
+  entries: Map<string, AccountLatestEntry>,
+  month: string,
+): EnrichedAccount[] {
+  return accounts
+    .map((acc) => ({
+      ...acc,
+      latestBalance: entries.get(acc.id)?.balance ?? acc.balance,
+      latestMonth:   entries.get(acc.id)?.month,
+    }))
+    .filter((acc) => isAccountActive(entries.get(acc.id), month))
+    .sort((a, b) => b.latestBalance - a.latestBalance)
+}
+
+/** Fetches accounts + their latest recorded balances and combines them via `enrichAccounts`. */
+export async function fetchEnrichedAccounts(userId: string, month: string): Promise<EnrichedAccount[]> {
+  const [accounts, { entries }] = await Promise.all([
+    fetchAccounts(userId),
+    fetchLatestAccountBalances(userId, month),
+  ])
+  return enrichAccounts(accounts, entries, month)
 }
 
 /** Insert or update the balance snapshot for an account in a given month. */

@@ -17,7 +17,7 @@ import { CategoryBars } from '@/components/charts/CategoryBars'
 import { formatCurrency, formatMonth } from '@/lib/format'
 import { MOCK_INSIGHTS } from '@/lib/mock'
 import { applyFilters, computeCashFlow, computeCategoryBreakdown } from '@/engine/CashFlowEngine'
-import { latestNetWorth } from '@/investments/NetWorthEngine'
+import { netWorthForMonth } from '@/investments/NetWorthEngine'
 import { useTransactions } from '@/lib/hooks/useTransactions'
 import { useNetWorth } from '@/lib/hooks/useNetWorth'
 import { useUser } from '@/lib/UserContext'
@@ -30,7 +30,7 @@ export function Dashboard() {
   const monthTxs   = useMemo(() => applyFilters(transactions, { month }), [transactions, month])
   const cashFlow   = useMemo(() => computeCashFlow(monthTxs), [monthTxs])
   const categories = useMemo(() => computeCategoryBreakdown(monthTxs), [monthTxs])
-  const netWorth   = latestNetWorth(timeline)
+  const netWorth   = netWorthForMonth(timeline, month)
 
   const loading = txLoading || nwLoading
 

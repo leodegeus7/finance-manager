@@ -9,7 +9,7 @@ import {
   createCard, deleteCard,
   AccountRow, CardRow,
 } from '@/lib/db/accounts'
-import { fetchLatestAccountBalances, AccountLatestEntry, isAccountActive } from '@/lib/db/networth'
+import { fetchLatestAccountBalances, AccountLatestEntry, enrichAccounts } from '@/lib/db/networth'
 import { CardTransactionsModal } from '@/components/cards/CardTransactionsModal'
 
 const BANKS = ['nubank', 'inter', 'c6', 'itaú', 'bradesco', 'santander', 'caixa', 'bb', 'sicoob', 'outro']
@@ -111,14 +111,7 @@ export function AccountsCards() {
     refetch()
   }
 
-  const enrichedAccounts = accounts
-    .map((acc) => ({
-      ...acc,
-      latestBalance: latestEntries.get(acc.id)?.balance ?? acc.balance,
-      latestMonth:   latestEntries.get(acc.id)?.month,
-    }))
-    .filter((acc) => isAccountActive(latestEntries.get(acc.id), month))
-    .sort((a, b) => b.latestBalance - a.latestBalance)
+  const enrichedAccounts = enrichAccounts(accounts, latestEntries, month)
 
   const totalBalance = enrichedAccounts.reduce((s, a) => s + a.latestBalance, 0)
   const visibleAccounts = showAllAccounts ? enrichedAccounts : enrichedAccounts.slice(0, ACCOUNTS_PREVIEW_COUNT)

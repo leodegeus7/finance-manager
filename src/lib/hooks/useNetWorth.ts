@@ -1,28 +1,46 @@
 import { useState, useEffect, useMemo } from 'react'
 import { NetWorthSnapshot, Asset } from '@/investments/types'
-import { fetchAccountBalanceHistory, fetchAssets, AccountHistoryRow } from '@/lib/db/networth'
+import {
+  fetchAccountBalanceHistory, fetchAssets, AccountHistoryRow,
+  computeLatestAccountBalances, enrichAccounts, EnrichedAccount,
+  isAccountActive,
+} from '@/lib/db/networth'
 import { fetchAccounts, AccountRow } from '@/lib/db/accounts'
 import { buildNetWorthTimeline } from '@/investments/NetWorthEngine'
 
-export interface AccountWithBalance extends AccountRow {
-  // Balance from account_balance_history for the selected month
-  // Falls back to AccountRow.balance if no history record exists
-  historical_balance: number | undefined
+function round(n: number): number {
+  return Math.round(n * 100) / 100
 }
 
-function computeTimelineFromHistory(history: AccountHistoryRow[]): NetWorthSnapshot[] {
-  // Aggregate per month: sum all account balances
-  const byMonth = new Map<string, number>()
-  for (const r of history) {
-    byMonth.set(r.month, (byMonth.get(r.month) ?? 0) + r.balance)
-  }
+/**
+ * Builds a monthly net worth timeline using the SAME "active accounts,
+ * latest balance up to that month" rule as Contas & Cartões
+ * (`enrichAccounts`/`isAccountActive`), plus the current total of active
+ * assets/investments. This is what makes the "Patrimônio total" figure on
+ * the Dashboard and Patrimônio page match the "Total" shown in Contas.
+ */
+function computeTimeline(
+  history: AccountHistoryRow[],
+  accounts: AccountRow[],
+  assetsTotal: number,
+  extraMonths: string[],
+): NetWorthSnapshot[] {
+  const months = new Set(history.map((r) => r.month))
+  for (const m of extraMonths) months.add(m)
 
-  const raw = Array.from(byMonth.entries()).map(([month, accounts_total]) => ({
-    month,
-    accounts_total,
-    assets_total: 0,
-    net_worth: accounts_total,
-  }))
+  const raw = Array.from(months).sort().map((month) => {
+    const { entries } = computeLatestAccountBalances(history, month)
+    const accountsTotal = accounts
+      .filter((acc) => isAccountActive(entries.get(acc.id), month))
+      .reduce((s, acc) => s + (entries.get(acc.id)?.balance ?? acc.balance), 0)
+
+    return {
+      month,
+      accounts_total: round(accountsTotal),
+      assets_total:   assetsTotal,
+      net_worth:      round(accountsTotal + assetsTotal),
+    }
+  })
 
   return buildNetWorthTimeline(raw)
 }
@@ -51,27 +69,26 @@ export function useNetWorth(userId: string, selectedMonth: string) {
       .finally(() => setLoading(false))
   }, [userId])
 
-  // Build timeline from history
-  const timeline = useMemo(() => computeTimelineFromHistory(history), [history])
-
-  // Per-account balances for the selected month (from history)
-  const selectedMonthBalances = useMemo(() => {
-    const map = new Map<string, number>()
-    for (const r of history) {
-      if (r.month === selectedMonth) map.set(r.account_id, r.balance)
-    }
-    return map
-  }, [history, selectedMonth])
-
-  // Accounts enriched with their historical balance for the selected month
-  const accountsWithBalance = useMemo<AccountWithBalance[]>(
-    () =>
-      accounts.map((acc) => ({
-        ...acc,
-        historical_balance: selectedMonthBalances.get(acc.id),
-      })),
-    [accounts, selectedMonthBalances],
+  // Total of active assets/investments (no per-month history, so it's a
+  // current snapshot applied across the timeline).
+  const assetsTotal = useMemo(
+    () => round(assets.filter((a) => a.is_active).reduce((s, a) => s + a.current_value, 0)),
+    [assets],
   )
 
-  return { timeline, assets, accounts, accountsWithBalance, loading, error }
+  // Monthly net worth timeline, guaranteed to include `selectedMonth` even
+  // if there's no exact account_balance_history row for it.
+  const timeline = useMemo(
+    () => computeTimeline(history, accounts, assetsTotal, [selectedMonth]),
+    [history, accounts, assetsTotal, selectedMonth],
+  )
+
+  // Accounts enriched with their latest balance up to the selected month —
+  // same data/filter used by Contas & Cartões.
+  const enrichedAccounts = useMemo<EnrichedAccount[]>(() => {
+    const { entries } = computeLatestAccountBalances(history, selectedMonth)
+    return enrichAccounts(accounts, entries, selectedMonth)
+  }, [history, accounts, selectedMonth])
+
+  return { timeline, assets, assetsTotal, accounts, enrichedAccounts, loading, error }
 }
