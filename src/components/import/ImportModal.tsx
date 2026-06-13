@@ -559,7 +559,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                         {!transfer && (
                           <>
                             <CategorySelect
-                              className="flex-1 min-w-0"
+                              className="basis-full min-w-0"
                               inputClassName={selCls}
                               value={draft.category_id}
                               onChange={(id) => updateCategoryForAll(tx.external_id, id)}
