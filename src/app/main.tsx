@@ -10,6 +10,20 @@ if (typeof BigInt !== 'undefined') {
   }
 }
 
+// Polyfill Uint8Array.prototype.toHex — required by pdfjs-dist v5+ on browsers
+// < Chrome 123 (the Uint8Array to/from hex/base64 proposal). Without this,
+// PDF parsing throws "UnknownErrorException: n.toHex is not a function"
+// when computing the document fingerprint.
+if (typeof Uint8Array !== 'undefined') {
+  const up = Uint8Array.prototype as unknown as Record<string, unknown>
+  if (!up['toHex']) {
+    // eslint-disable-next-line no-extend-native
+    up['toHex'] = function (this: Uint8Array) {
+      return Array.from(this, (b) => b.toString(16).padStart(2, '0')).join('')
+    }
+  }
+}
+
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
