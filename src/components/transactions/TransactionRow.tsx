@@ -112,7 +112,7 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
             {/* Descrição customizada */}
             <input
               type="text"
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 w-full"
+              className="text-xs border border-transparent rounded-lg px-2 py-1 text-gray-400 placeholder:text-gray-300 hover:border-gray-200 focus:outline-none focus:border-gray-200 focus:ring-1 focus:ring-blue-400 focus:text-gray-700 w-full"
               placeholder="Descrição customizada (opcional)"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

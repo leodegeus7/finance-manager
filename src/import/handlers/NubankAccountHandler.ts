@@ -67,6 +67,30 @@ export class NubankAccountHandler implements ImportHandler {
   normalize(rows: RawRow[], ctx: HandlerContext): NormalizedTransaction[] {
     const results: NormalizedTransaction[] = []
 
+    // Nubank reuses the same Identificador for a failed/reversed Pix and its
+    // "Estorno - ..." counter-entry. When both rows are present and net to
+    // zero, the transfer never actually went through — skip both so they
+    // don't show up duplicated (and don't collide on external_id).
+    const sumsByIdentifier = new Map<string, number>()
+    for (const row of rows) {
+      const identifier = row['Identificador']
+      const rawValue = row['Valor']
+      if (!identifier || !rawValue) continue
+      const value = parseFloat(rawValue.replace(',', '.'))
+      if (isNaN(value)) continue
+      sumsByIdentifier.set(identifier, (sumsByIdentifier.get(identifier) ?? 0) + value)
+    }
+    const reversedIdentifiers = new Set<string>()
+    for (const row of rows) {
+      const identifier = row['Identificador']
+      const description = row['Descrição'] ?? row['Descricao'] ?? ''
+      if (!identifier) continue
+      if (/^estorno/i.test(description.trim())) {
+        const sum = sumsByIdentifier.get(identifier) ?? 0
+        if (Math.abs(sum) < 0.005) reversedIdentifiers.add(identifier)
+      }
+    }
+
     for (const row of rows) {
       const rawDate = row['Data']
       const rawValue = row['Valor']
@@ -74,6 +98,7 @@ export class NubankAccountHandler implements ImportHandler {
       const description = row['Descrição'] ?? row['Descricao'] ?? ''
 
       if (!rawDate || !rawValue || !identifier) continue
+      if (reversedIdentifiers.has(identifier)) continue
 
       const isoDate = parseBrazilianDate(rawDate)
       const signedAmount = parseFloat(rawValue.replace(',', '.'))
