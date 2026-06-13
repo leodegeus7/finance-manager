@@ -18,6 +18,13 @@ export interface ManualTransactionInput {
   notes?: string
 }
 
+// Match by "effective month": non-card transactions (statement_month is
+// null) by competency_month (purchase month); credit card transactions by
+// statement_month (invoice month) — regardless of which calendar month the
+// purchase itself fell in. See src/engine/effectiveMonth.ts.
+const effectiveMonthOr = (month: string) =>
+  `and(statement_month.is.null,competency_month.eq.${month}),statement_month.eq.${month}`
+
 type Row = Record<string, unknown>
 
 function toTransaction(row: Row): Transaction {
@@ -61,8 +68,8 @@ export async function fetchTransactionsByMonth(month: string, userId: string): P
         parent:parent_id ( id, name )
       )
     `)
-    .eq('competency_month', month)
     .eq('user_id', userId)
+    .or(effectiveMonthOr(month))
     .order('date', { ascending: false })
 
   if (error) throw error
@@ -176,68 +183,33 @@ export async function bulkUpdateTransactions(
   }
 }
 
-/** Fetch ALL of a user's transactions relevant to a given month.
- *  Includes both competency_month matches AND statement_month matches (CC invoices).
- *  Deduplicates by id. Unlike `fetchSplitTransactionsByMonth`, this is NOT
- *  restricted to transactions that have `splits` set — used by the Casal
- *  page, which also needs individual (non-split) fixed expenses. */
+/** Fetch ALL of a user's transactions relevant to a given month (effective
+ *  month — see effectiveMonthOr). Unlike `fetchSplitTransactionsByMonth`,
+ *  this is NOT restricted to transactions that have `splits` set — used by
+ *  the Casal page, which also needs individual (non-split) fixed expenses. */
 export async function fetchPersonalTransactionsByMonth(month: string, userId: string): Promise<Transaction[]> {
-  const [byCompetency, byStatement] = await Promise.all([
-    supabase
-      .from('transactions')
-      .select(`*, categories:category_id (id, name, parent:parent_id (id, name))`)
-      .eq('competency_month', month)
-      .eq('user_id', userId),
-    supabase
-      .from('transactions')
-      .select(`*, categories:category_id (id, name, parent:parent_id (id, name))`)
-      .eq('statement_month', month)
-      .eq('user_id', userId),
-  ])
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(`*, categories:category_id (id, name, parent:parent_id (id, name))`)
+    .eq('user_id', userId)
+    .or(effectiveMonthOr(month))
 
-  if (byCompetency.error) throw byCompetency.error
-  if (byStatement.error)  throw byStatement.error
-
-  const seen = new Set<string>()
-  const merged: Transaction[] = []
-  for (const row of [...(byCompetency.data ?? []), ...(byStatement.data ?? [])]) {
-    if (seen.has(row.id)) continue
-    seen.add(row.id)
-    merged.push(toTransaction(row as Row))
-  }
-  return merged
+  if (error) throw error
+  return (data ?? []).map((row) => toTransaction(row as Row))
 }
 
-/** Fetch transactions with splits that are relevant to a given month.
- *  Includes both competency_month matches AND statement_month matches (CC invoices).
- *  Deduplicates by id. */
+/** Fetch transactions with splits that are relevant to a given month
+ *  (effective month — see effectiveMonthOr). */
 export async function fetchSplitTransactionsByMonth(month: string, userId: string): Promise<Transaction[]> {
-  const [byCompetency, byStatement] = await Promise.all([
-    supabase
-      .from('transactions')
-      .select(`*, categories:category_id (id, name, parent:parent_id (id, name))`)
-      .eq('competency_month', month)
-      .eq('user_id', userId)
-      .not('splits', 'is', null),
-    supabase
-      .from('transactions')
-      .select(`*, categories:category_id (id, name, parent:parent_id (id, name))`)
-      .eq('statement_month', month)
-      .eq('user_id', userId)
-      .not('splits', 'is', null),
-  ])
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(`*, categories:category_id (id, name, parent:parent_id (id, name))`)
+    .eq('user_id', userId)
+    .not('splits', 'is', null)
+    .or(effectiveMonthOr(month))
 
-  if (byCompetency.error) throw byCompetency.error
-  if (byStatement.error)  throw byStatement.error
-
-  const seen = new Set<string>()
-  const merged: Transaction[] = []
-  for (const row of [...(byCompetency.data ?? []), ...(byStatement.data ?? [])]) {
-    if (seen.has(row.id)) continue
-    seen.add(row.id)
-    merged.push(toTransaction(row as Row))
-  }
-  return merged
+  if (error) throw error
+  return (data ?? []).map((row) => toTransaction(row as Row))
 }
 
 export async function fetchTransactionsByCard(cardId: string, month: string): Promise<Transaction[]> {

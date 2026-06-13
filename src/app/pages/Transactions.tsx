@@ -11,16 +11,19 @@
 import { useState, useMemo, useCallback } from 'react'
 import { Card } from '@/components/ui/Card'
 import { TransactionList } from '@/components/transactions/TransactionList'
+import { CardInvoiceGroup } from '@/components/transactions/CardInvoiceGroup'
 import { ImportModal } from '@/components/import/ImportModal'
 import { AddTransactionModal } from '@/components/transactions/AddTransactionModal'
 import { applyFilters, computeCashFlow } from '@/engine/CashFlowEngine'
 import { countUncategorized } from '@/engine/CategoryEngine'
+import { effectiveMonth } from '@/engine/effectiveMonth'
 import { formatCurrency, formatMonth } from '@/lib/format'
 import { useTransactions } from '@/lib/hooks/useTransactions'
 import { useCategories } from '@/lib/hooks/useCategories'
 import { useAccounts } from '@/lib/hooks/useAccounts'
 import { useUser } from '@/lib/UserContext'
 import { deleteTransaction } from '@/lib/db/transactions'
+import { CardRow } from '@/lib/db/accounts'
 import { OwedSummary } from '@/components/transactions/OwedSummary'
 
 export function Transactions() {
@@ -66,6 +69,35 @@ export function Transactions() {
   const cashFlowTxs = useMemo(() => applyFilters(filtered, {}), [filtered])
   const cashFlow    = useMemo(() => computeCashFlow(cashFlowTxs), [cashFlowTxs])
   const uncatCount  = useMemo(() => countUncategorized(cashFlowTxs), [cashFlowTxs])
+
+  // Credit card transactions are grouped into one row per invoice
+  // (card + effective month), expandable to show every individual purchase
+  // with its real date. Account/manual transactions stay in the flat list.
+  const cardGroups = useMemo(() => {
+    const map = new Map<string, { card: CardRow; month: string; transactions: typeof filtered }>()
+    for (const tx of filtered) {
+      if (!tx.credit_card_id) continue
+      const month = effectiveMonth(tx)
+      const key = `${tx.credit_card_id}|${month}`
+      let group = map.get(key)
+      if (!group) {
+        const card = cards.find((c) => c.id === tx.credit_card_id) ?? {
+          id: tx.credit_card_id, name: 'Cartão', bank: '', invoice_total: 0, invoice_paid: 0, status: 'open' as const,
+        }
+        group = { card, month, transactions: [] }
+        map.set(key, group)
+      }
+      group.transactions.push(tx)
+    }
+    const groupTotal = (g: { transactions: typeof filtered }) =>
+      g.transactions.reduce((s, t) => (t.direction === 'expense' ? s + t.amount : s - t.amount), 0)
+    return [...map.values()].sort((a, b) => {
+      if (a.month !== b.month) return b.month.localeCompare(a.month)
+      return groupTotal(b) - groupTotal(a)
+    })
+  }, [filtered, cards])
+
+  const accountTxs = useMemo(() => filtered.filter((t) => !t.credit_card_id), [filtered])
 
   if (error) return (
     <div className="p-8 text-red-600 text-sm">Erro ao carregar transações: {error}</div>
@@ -247,13 +279,35 @@ export function Transactions() {
             </p>
           )}
         </div>
-        <TransactionList
-          transactions={filtered}
-          categories={categories}
-          accounts={accounts}
-          onUpdate={handleUpdate}
-          onDelete={handleDelete}
-        />
+
+        {/* Cartões — uma linha por fatura, expansível */}
+        {sourceFilter !== 'account' && cardGroups.length > 0 && (
+          <div className="p-2 space-y-2">
+            {cardGroups.map((g) => (
+              <CardInvoiceGroup
+                key={`${g.card.id}|${g.month}`}
+                card={g.card}
+                month={g.month}
+                transactions={g.transactions}
+                categories={categories}
+                accounts={accounts}
+                onUpdate={handleUpdate}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Conta — lista plana */}
+        {sourceFilter !== 'card' && (accountTxs.length > 0 || cardGroups.length === 0) && (
+          <TransactionList
+            transactions={accountTxs}
+            categories={categories}
+            accounts={accounts}
+            onUpdate={handleUpdate}
+            onDelete={handleDelete}
+          />
+        )}
       </Card>
     </div>
   )

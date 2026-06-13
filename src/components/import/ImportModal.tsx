@@ -328,12 +328,18 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
         classifications,
       )
 
-      // Find the primary competency_month (most frequent among imported txs)
-      const monthCounts: Record<string, number> = {}
-      for (const tx of normalizedTxs) {
-        monthCounts[tx.competency_month] = (monthCounts[tx.competency_month] ?? 0) + 1
+      // For card imports, land on the invoice's month (statement_month) —
+      // not the most common competency_month, which can differ for
+      // purchases made near the end of the previous calendar month.
+      // For account imports, fall back to the most frequent competency_month.
+      let primaryMonth: string | undefined = ctx.statementMonth
+      if (!primaryMonth) {
+        const monthCounts: Record<string, number> = {}
+        for (const tx of normalizedTxs) {
+          monthCounts[tx.competency_month] = (monthCounts[tx.competency_month] ?? 0) + 1
+        }
+        primaryMonth = Object.entries(monthCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
       }
-      const primaryMonth = Object.entries(monthCounts).sort((a, b) => b[1] - a[1])[0]?.[0]
 
       setResult({ inserted: res.inserted, skipped: res.skipped, month: primaryMonth })
 

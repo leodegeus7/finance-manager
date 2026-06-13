@@ -17,6 +17,7 @@
 
 import { Transaction } from '../engine/types'
 import { isCountableExpense } from '../engine/CashFlowEngine'
+import { effectiveMonth } from '../engine/effectiveMonth'
 import {
   SharingRule,
   UserMonthlyBalance,
@@ -120,7 +121,7 @@ export function getSharedExpenses(
 ): Transaction[] {
   return transactions.filter(
     (tx) =>
-      tx.competency_month === month &&
+      effectiveMonth(tx) === month &&
       tx.scope === 'shared' &&
       isCountableExpense(tx) &&
       isCoupleSplit(tx),
@@ -141,7 +142,7 @@ export function getFixedExpenses(
 ): Transaction[] {
   return transactions.filter(
     (tx) =>
-      tx.competency_month === month &&
+      effectiveMonth(tx) === month &&
       tx.fixed_type === 'fixed' &&
       isCountableExpense(tx),
   )

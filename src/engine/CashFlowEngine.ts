@@ -19,6 +19,7 @@
 
 import { Transaction, CashFlowSummary, CategoryBreakdown, TransactionFilter } from './types'
 import { TransactionType } from '../import/types'
+import { effectiveMonth } from './effectiveMonth'
 
 // Types that count toward real income in cash flow
 const INCOME_TYPES = new Set<TransactionType>(['income'])
@@ -74,8 +75,9 @@ export function applyFilters(
   filter: TransactionFilter = {},
 ): Transaction[] {
   return transactions.filter((tx) => {
-    // Month filter (competency_month)
-    if (filter.month && tx.competency_month !== filter.month) return false
+    // Month filter (effective month — invoice month for card purchases,
+    // competency_month for everything else)
+    if (filter.month && effectiveMonth(tx) !== filter.month) return false
 
     // Context filter
     if (filter.context && tx.context !== filter.context) return false
