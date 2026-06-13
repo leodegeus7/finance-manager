@@ -63,6 +63,45 @@ export async function fetchLatestAccountBalances(
   return { entries, maxMonth }
 }
 
+/**
+ * An account is considered active if it has no history yet (newly created /
+ * never tracked), or its last recorded balance is positive and recent
+ * (within 12 months of `viewMonth`).
+ */
+export function isAccountActive(entry: AccountLatestEntry | undefined, viewMonth: string): boolean {
+  if (!entry) return true                 // no history = newly created or never tracked → always show
+  if (entry.balance <= 0) return false    // explicitly zeroed
+  if (!viewMonth) return true
+  const [vy, vm] = viewMonth.split('-').map(Number)
+  const [ey, em] = entry.month.split('-').map(Number)
+  const monthsAgo = (vy - ey) * 12 + (vm - em)
+  return monthsAgo <= 12
+}
+
+/** Insert or update the balance snapshot for an account in a given month. */
+export async function upsertAccountBalance(accountId: string, month: string, balance: number): Promise<void> {
+  const { data: existing, error: selErr } = await supabase
+    .from('account_balance_history')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('month', month)
+    .maybeSingle()
+  if (selErr) throw selErr
+
+  if (existing) {
+    const { error } = await supabase
+      .from('account_balance_history')
+      .update({ balance })
+      .eq('id', (existing as { id: string }).id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase
+      .from('account_balance_history')
+      .insert({ account_id: accountId, month, balance })
+    if (error) throw error
+  }
+}
+
 export async function fetchAssets(userId: string): Promise<Asset[]> {
   const { data, error } = await supabase
     .from('assets')

@@ -9,7 +9,7 @@ import {
   createCard, deleteCard,
   AccountRow, CardRow,
 } from '@/lib/db/accounts'
-import { fetchLatestAccountBalances, AccountLatestEntry } from '@/lib/db/networth'
+import { fetchLatestAccountBalances, AccountLatestEntry, isAccountActive } from '@/lib/db/networth'
 import { CardTransactionsModal } from '@/components/cards/CardTransactionsModal'
 
 const BANKS = ['nubank', 'inter', 'c6', 'itaú', 'bradesco', 'santander', 'caixa', 'bb', 'sicoob', 'outro']
@@ -111,28 +111,13 @@ export function AccountsCards() {
     refetch()
   }
 
-  // An account is considered active if its last recorded month is within 3 months
-  // of the most recent month in the whole dataset.
-  // This catches accounts that silently went to 0 without an explicit zero record
-  // (e.g. Avenue: last record is May/2021, global max is Aug/2025 → clearly closed).
-  function isActive(entry: AccountLatestEntry | undefined, _fallbackBalance: number): boolean {
-    if (!entry) return true                 // no history = newly created or never tracked → always show
-    if (entry.balance <= 0) return false    // explicitly zeroed
-    if (!month) return true
-    // Compare entry's last recorded month against the viewed month — 12-month tolerance
-    const [vy, vm] = month.split('-').map(Number)
-    const [ey, em] = entry.month.split('-').map(Number)
-    const monthsAgo = (vy - ey) * 12 + (vm - em)
-    return monthsAgo <= 12
-  }
-
   const enrichedAccounts = accounts
     .map((acc) => ({
       ...acc,
       latestBalance: latestEntries.get(acc.id)?.balance ?? acc.balance,
       latestMonth:   latestEntries.get(acc.id)?.month,
     }))
-    .filter((acc) => isActive(latestEntries.get(acc.id), acc.balance))
+    .filter((acc) => isAccountActive(latestEntries.get(acc.id), month))
     .sort((a, b) => b.latestBalance - a.latestBalance)
 
   const totalBalance = enrichedAccounts.reduce((s, a) => s + a.latestBalance, 0)

@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { formatMonth } from '@/lib/format'
 import { useUser } from '@/lib/UserContext'
 import { useMonthlyStatus } from '@/lib/hooks/useMonthlyStatus'
+import { BalanceEntryModal } from '@/components/checklist/BalanceEntryModal'
 
 /** Last N months as YYYY-MM-01 values, most recent first */
 function recentMonths(n = 6): string[] {
@@ -17,16 +18,25 @@ function recentMonths(n = 6): string[] {
   return months
 }
 
-function StatusBadge({ done }: { done: boolean }) {
-  return done
+function StatusBadge({ done, onClick }: { done: boolean; onClick?: () => void }) {
+  const badge = done
     ? <Badge variant="green">Feito</Badge>
     : <Badge variant="red">Pendente</Badge>
+
+  if (!onClick) return badge
+
+  return (
+    <button onClick={onClick} className="cursor-pointer hover:opacity-70 transition-opacity">
+      {badge}
+    </button>
+  )
 }
 
 export function MonthlyChecklist() {
   const { userId, userName } = useUser()
   const months = useMemo(() => recentMonths(6), [])
-  const { statuses, loading, error } = useMonthlyStatus(userId, months)
+  const { statuses, loading, error, refetch } = useMonthlyStatus(userId, months)
+  const [balanceMonth, setBalanceMonth] = useState<string | null>(null)
 
   if (error) return (
     <div className="p-8 text-red-600 text-sm">Erro ao carregar status: {error}</div>
@@ -59,13 +69,24 @@ export function MonthlyChecklist() {
                   <td className="py-3 font-medium text-gray-900">{formatMonth(s.month)}</td>
                   <td className="py-3"><StatusBadge done={s.hasCard} /></td>
                   <td className="py-3"><StatusBadge done={s.hasAccount} /></td>
-                  <td className="py-3"><StatusBadge done={s.hasBalance} /></td>
+                  <td className="py-3">
+                    <StatusBadge done={s.hasBalance} onClick={() => setBalanceMonth(s.month)} />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
       </Card>
+
+      {balanceMonth && (
+        <BalanceEntryModal
+          userId={userId}
+          month={balanceMonth}
+          onClose={() => setBalanceMonth(null)}
+          onSaved={refetch}
+        />
+      )}
     </div>
   )
 }
