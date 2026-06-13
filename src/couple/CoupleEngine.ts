@@ -270,6 +270,79 @@ export function listSharedTransactions(
     .sort((a, b) => b.date.localeCompare(a.date))
 }
 
+// ─── Monthly Couple Summary (Casal page) ──────────────────────
+
+/** First month the couple started using the system for shared tracking. */
+export const COUPLE_START_MONTH = '2026-04-01'
+
+export interface CoupleMonthSummary {
+  month: string
+  total: number        // total shared expenses (leoShare + muriloShare)
+  leoPaid: number       // sum of tx.amount where tx.user_id === 'leo'
+  muriloPaid: number    // sum of tx.amount where tx.user_id === 'murilo'
+  leoShare: number      // sum of tx.amount * (leo's split pct / 100)
+  muriloShare: number   // sum of tx.amount * (murilo's split pct / 100)
+  settlement: Settlement | null
+}
+
+/**
+ * Computes, for a single month, how much each partner actually paid vs.
+ * how much they were supposed to pay according to each transaction's
+ * splits — and the resulting settlement (who owes whom).
+ *
+ * Only considers shared, countable expenses (Rule 6.2 + CashFlow rules).
+ * NEVER mutates any transaction.
+ */
+export function computeCoupleMonthSummary(
+  transactions: Transaction[],
+  month: string,
+): CoupleMonthSummary {
+  const shared = getSharedExpenses(transactions, month)
+
+  let leoPaid = 0
+  let muriloPaid = 0
+  let leoShare = 0
+  let muriloShare = 0
+
+  for (const tx of shared) {
+    const leoPct = tx.splits?.find((p) => p.user_id === 'leo')?.pct ?? 0
+    const muriloPct = tx.splits?.find((p) => p.user_id === 'murilo')?.pct ?? 0
+
+    leoShare += tx.amount * (leoPct / 100)
+    muriloShare += tx.amount * (muriloPct / 100)
+
+    if (tx.user_id === 'leo') {
+      leoPaid += tx.amount
+    } else if (tx.user_id === 'murilo') {
+      muriloPaid += tx.amount
+    }
+  }
+
+  leoPaid = round(leoPaid)
+  muriloPaid = round(muriloPaid)
+  leoShare = round(leoShare)
+  muriloShare = round(muriloShare)
+
+  const diff = round(leoPaid - leoShare)
+
+  let settlement: Settlement | null = null
+  if (diff > 0.01) {
+    settlement = { debtor_user_id: 'murilo', creditor_user_id: 'leo', amount: diff }
+  } else if (diff < -0.01) {
+    settlement = { debtor_user_id: 'leo', creditor_user_id: 'murilo', amount: round(Math.abs(diff)) }
+  }
+
+  return {
+    month,
+    total: round(leoShare + muriloShare),
+    leoPaid,
+    muriloPaid,
+    leoShare,
+    muriloShare,
+    settlement,
+  }
+}
+
 // ─── Utils ────────────────────────────────────────────────────
 
 function round(n: number): number {
