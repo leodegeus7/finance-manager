@@ -76,6 +76,7 @@ interface Draft {
   is_transfer: boolean
   to_account_id: string
   notes: string
+  is_fixed: boolean
 }
 
 function txIsTransfer(tx: NormalizedTransaction) {
@@ -190,6 +191,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
           is_transfer:   tx.type === 'transfer',
           to_account_id: tx.suggested_to_account_id ?? '',
           notes:         '',
+          is_fixed:      false,
         })
       }
       setDrafts(initDrafts)
@@ -227,6 +229,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
             is_transfer:   tx.type === 'transfer',
             to_account_id: tx.suggested_to_account_id ?? '',
             notes:         '',
+            is_fixed:      false,
           })
         }
         return next
@@ -317,6 +320,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
           is_transfer: d.is_transfer,
           to_account_id: d.to_account_id || undefined,
           notes: d.notes.trim() || null,
+          fixed_type: d.is_fixed ? 'fixed' : null,
         })
       }
 
@@ -573,6 +577,20 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                                 </button>
                               ))}
                             </div>
+
+                            {/* Marcar como gasto fixo (ex: aluguel, assinaturas, mensalidades) */}
+                            {!isIncome && (
+                              <button
+                                onClick={() => updateDraft(tx.external_id, { is_fixed: !draft.is_fixed })}
+                                className={`text-xs px-2 py-1 rounded-lg border transition-colors font-medium shrink-0 ${
+                                  draft.is_fixed
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                                }`}
+                              >
+                                📌 Fixo
+                              </button>
+                            )}
 
                             {!isIncome && (
                               <SplitEditor

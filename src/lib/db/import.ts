@@ -16,6 +16,7 @@ export interface ImportClassification {
   is_transfer?: boolean      // override type → 'transfer', clears category/splits
   to_account_id?: string     // destination account for transfers
   notes?: string | null      // custom description set by the user during classification
+  fixed_type?: 'fixed' | 'variable' | 'occasional' | null
 }
 
 /**
@@ -54,7 +55,7 @@ export async function upsertTransactions(
       category_id:         isTransfer ? null : (clf?.category_id || null),
       to_account_id:       isTransfer ? (clf?.to_account_id ?? null) : null,
       is_essential:        false,
-      fixed_type:          null,
+      fixed_type:          isTransfer ? null : (clf?.fixed_type ?? null),
       installment_current: tx.installment_current ?? null,
       installment_total:   tx.installment_total ?? null,
       external_id:         tx.external_id,
