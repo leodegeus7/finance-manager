@@ -3,6 +3,9 @@
 //
 // - Topo: total de despesas compartilhadas do mês selecionado + gráfico
 //   de barras por categoria (clicável → drill-down de transações)
+// - Gastos fixos do mês (qualquer transação pessoal marcada como "fixa",
+//   mesmo que não dividida com o parceiro)
+// - Gráfico dia a dia dos gastos compartilhados, subdividido por categoria
 // - Abaixo: histórico mês a mês (desde COUPLE_START_MONTH) de quanto cada
 //   um pagou e o resultado da divisão (quem deve quanto a quem)
 //
@@ -13,14 +16,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { SharedCategoryBarChart } from '@/components/charts/SharedCategoryBarChart'
+import { DailySpendingChart } from '@/components/charts/DailySpendingChart'
 import { CategoryTransactionsModal } from '@/components/transactions/CategoryTransactionsModal'
 import { formatCurrency, formatMonth } from '@/lib/format'
 import { useUser } from '@/lib/UserContext'
-import { fetchSplitTransactionsByMonth } from '@/lib/db/transactions'
+import { fetchPersonalTransactionsByMonth } from '@/lib/db/transactions'
 import { Transaction } from '@/engine/types'
 import {
   COUPLE_START_MONTH,
   getSharedExpenses,
+  getFixedExpenses,
   computeSharedCategoryBreakdown,
   computeCoupleMonthSummary,
   CoupleMonthSummary,
@@ -45,8 +50,8 @@ function monthRange(start: string, end: string): string[] {
 
 async function fetchSharedTransactions(month: string): Promise<Transaction[]> {
   const [leoTxs, muriloTxs] = await Promise.all([
-    fetchSplitTransactionsByMonth(month, 'leo'),
-    fetchSplitTransactionsByMonth(month, 'murilo'),
+    fetchPersonalTransactionsByMonth(month, 'leo'),
+    fetchPersonalTransactionsByMonth(month, 'murilo'),
   ])
   return [...leoTxs, ...muriloTxs].filter((tx) => tx.context === 'personal')
 }
@@ -58,6 +63,7 @@ export function Casal() {
   const [monthTxs, setMonthTxs] = useState<Transaction[]>([])
   const [monthLoading, setMonthLoading] = useState(true)
   const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null)
+  const [showFixedModal, setShowFixedModal] = useState(false)
 
   useEffect(() => {
     setMonthLoading(true)
@@ -73,6 +79,11 @@ export function Casal() {
     () => computeSharedCategoryBreakdown(monthTxs, month, ['leo', 'murilo']),
     [monthTxs, month],
   )
+
+  // Gastos fixos do mês — qualquer transação pessoal marcada como "fixa",
+  // mesmo que não esteja dividida com o parceiro (ex: aluguel pago só por um)
+  const fixedExpenses = useMemo(() => getFixedExpenses(monthTxs, month), [monthTxs, month])
+  const fixedTotal = useMemo(() => fixedExpenses.reduce((s, tx) => s + tx.amount, 0), [fixedExpenses])
 
   const selectedTxs = useMemo(() => {
     if (!selectedCategory) return []
@@ -142,6 +153,25 @@ export function Casal() {
         )}
       </Card>
 
+      {/* Gastos fixos do mês */}
+      <Card padding="md" onClick={!monthLoading && fixedExpenses.length > 0 ? () => setShowFixedModal(true) : undefined}>
+        <CardTitle>Gastos fixos do mês</CardTitle>
+        {monthLoading ? (
+          <p className="text-sm text-gray-400 mt-2">Carregando...</p>
+        ) : fixedExpenses.length === 0 ? (
+          <p className="text-sm text-gray-400 mt-2">Nenhum gasto marcado como fixo neste mês</p>
+        ) : (
+          <div className="flex items-end gap-3 mt-2">
+            <span className="text-3xl font-bold text-gray-900 tabular-nums">
+              {formatCurrency(fixedTotal)}
+            </span>
+            <span className="text-sm text-gray-400 mb-0.5">
+              {fixedExpenses.length} transaç{fixedExpenses.length !== 1 ? 'ões' : 'ão'} · clique para ver
+            </span>
+          </div>
+        )}
+      </Card>
+
       {/* Categorias */}
       <Card padding="md">
         <CardTitle>Gastos por categoria</CardTitle>
@@ -149,6 +179,17 @@ export function Casal() {
         <div className="mt-4">
           {!monthLoading && (
             <SharedCategoryBarChart data={categoryBreakdown} onCategoryClick={handleCategoryClick} />
+          )}
+        </div>
+      </Card>
+
+      {/* Gastos dia a dia */}
+      <Card padding="md">
+        <CardTitle>Gastos por dia</CardTitle>
+        <p className="text-xs text-gray-400 -mt-0.5 mb-2">Distribuição diária das despesas compartilhadas, por categoria</p>
+        <div className="mt-4">
+          {!monthLoading && (
+            <DailySpendingChart transactions={sharedExpenses} month={month} />
           )}
         </div>
       </Card>
@@ -203,7 +244,20 @@ export function Casal() {
           categoryName={selectedCategory.name}
           month={month}
           transactions={selectedTxs}
+          userNames={USER_NAMES}
           onClose={() => setSelectedCategory(null)}
+          onUpdate={handleTxUpdate}
+          onDelete={handleTxDelete}
+        />
+      )}
+
+      {showFixedModal && (
+        <CategoryTransactionsModal
+          categoryName="Gastos fixos do mês"
+          month={month}
+          transactions={fixedExpenses}
+          userNames={USER_NAMES}
+          onClose={() => setShowFixedModal(false)}
           onUpdate={handleTxUpdate}
           onDelete={handleTxDelete}
         />

@@ -91,10 +91,28 @@ export function validateSharingRules(rules: SharingRule[]): SharingRuleValidatio
 // ─── Core Calculation ─────────────────────────────────────────
 
 /**
+ * Returns true if a transaction's splits actually represent a split
+ * between the couple (Leo + Murilo) — i.e. both have a percentage > 0.
+ *
+ * A transaction can have `scope === 'shared'` while being split with a
+ * third party (e.g. a loan to a friend) — those must NOT be treated as
+ * couple expenses.
+ */
+export function isCoupleSplit(tx: Transaction): boolean {
+  if (!tx.splits) return false
+  const hasLeo    = tx.splits.some((p) => p.user_id === 'leo'    && p.pct > 0)
+  const hasMurilo = tx.splits.some((p) => p.user_id === 'murilo' && p.pct > 0)
+  return hasLeo && hasMurilo
+}
+
+/**
  * Extracts shared expense transactions for a given month.
  *
  * Only countable expenses are included (Rule 6.2 + CashFlow rules).
- * Transfers, CC payments, and investments are excluded.
+ * Transfers, CC payments, and investments are excluded. Only transactions
+ * actually split between Leo and Murilo are considered "couple shared" —
+ * splits with third parties (friends, etc.) are excluded even if
+ * `scope === 'shared'`.
  */
 export function getSharedExpenses(
   transactions: Transaction[],
@@ -104,6 +122,27 @@ export function getSharedExpenses(
     (tx) =>
       tx.competency_month === month &&
       tx.scope === 'shared' &&
+      isCountableExpense(tx) &&
+      isCoupleSplit(tx),
+  )
+}
+
+/**
+ * Extracts transactions marked as fixed expenses (`fixed_type === 'fixed'`)
+ * for a given month, regardless of `scope`/`splits` — a personal expense
+ * that isn't split with the partner can still be a "fixed" household cost
+ * (Rule: fixed expenses always count toward the couple's fixed-cost total).
+ *
+ * Only countable expenses are included (Rule 6.2 + CashFlow rules).
+ */
+export function getFixedExpenses(
+  transactions: Transaction[],
+  month: string,
+): Transaction[] {
+  return transactions.filter(
+    (tx) =>
+      tx.competency_month === month &&
+      tx.fixed_type === 'fixed' &&
       isCountableExpense(tx),
   )
 }

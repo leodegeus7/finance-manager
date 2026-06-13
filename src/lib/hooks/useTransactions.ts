@@ -30,6 +30,7 @@ export function useTransactions(month: string, userId: string) {
         splits:        patch.splits as SplitParticipant[] | null | undefined,
         to_account_id: (patch as any).to_account_id ?? undefined,
         notes:         patch.notes,
+        fixed_type:    (patch as any).fixed_type,
       })
     } catch {
       fetchTransactionsByMonth(month, userId).then(setTransactions).catch(() => null)

@@ -49,6 +49,7 @@ export function CardTransactionsModal({ card, month, onClose }: Props) {
         scope:       patch.scope,
         splits:      patch.splits,
         notes:       patch.notes,
+        fixed_type:  patch.fixed_type,
       })
     } catch {
       load() // revert on error

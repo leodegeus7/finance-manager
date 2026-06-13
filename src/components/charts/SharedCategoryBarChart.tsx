@@ -12,7 +12,7 @@ interface Props {
   onCategoryClick?: (categoryId: string) => void
 }
 
-export function SharedCategoryBarChart({ data, maxItems = 8, onCategoryClick }: Props) {
+export function SharedCategoryBarChart({ data, maxItems = Infinity, onCategoryClick }: Props) {
   const top = data.slice(0, maxItems)
 
   if (top.length === 0) {

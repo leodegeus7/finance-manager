@@ -145,6 +145,7 @@ export interface TransactionPatch {
   splits?: SplitParticipant[] | null
   to_account_id?: string | null
   notes?: string | null
+  fixed_type?: 'fixed' | 'variable' | 'occasional' | null
 }
 
 /** Auto-derives `scope` from splits when splits key is present */
@@ -173,6 +174,38 @@ export async function bulkUpdateTransactions(
       )
     )
   }
+}
+
+/** Fetch ALL of a user's transactions relevant to a given month.
+ *  Includes both competency_month matches AND statement_month matches (CC invoices).
+ *  Deduplicates by id. Unlike `fetchSplitTransactionsByMonth`, this is NOT
+ *  restricted to transactions that have `splits` set — used by the Casal
+ *  page, which also needs individual (non-split) fixed expenses. */
+export async function fetchPersonalTransactionsByMonth(month: string, userId: string): Promise<Transaction[]> {
+  const [byCompetency, byStatement] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select(`*, categories:category_id (id, name, parent:parent_id (id, name))`)
+      .eq('competency_month', month)
+      .eq('user_id', userId),
+    supabase
+      .from('transactions')
+      .select(`*, categories:category_id (id, name, parent:parent_id (id, name))`)
+      .eq('statement_month', month)
+      .eq('user_id', userId),
+  ])
+
+  if (byCompetency.error) throw byCompetency.error
+  if (byStatement.error)  throw byStatement.error
+
+  const seen = new Set<string>()
+  const merged: Transaction[] = []
+  for (const row of [...(byCompetency.data ?? []), ...(byStatement.data ?? [])]) {
+    if (seen.has(row.id)) continue
+    seen.add(row.id)
+    merged.push(toTransaction(row as Row))
+  }
+  return merged
 }
 
 /** Fetch transactions with splits that are relevant to a given month.

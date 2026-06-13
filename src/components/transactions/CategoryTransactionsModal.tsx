@@ -10,6 +10,8 @@ interface Props {
   categoryName: string
   month: string
   transactions: Transaction[]
+  /** Optional map of user_id → display name. When provided, shows who paid. */
+  userNames?: Record<string, string>
   onClose: () => void
   /** Notify the parent so it can keep its own copy of the data in sync */
   onUpdate?: (id: string, patch: Partial<Transaction> & { notes?: string | null }) => void
@@ -17,7 +19,7 @@ interface Props {
 }
 
 export function CategoryTransactionsModal({
-  categoryName, month, transactions: initial, onClose, onUpdate, onDelete,
+  categoryName, month, transactions: initial, userNames, onClose, onUpdate, onDelete,
 }: Props) {
   const [transactions, setTransactions] = useState(initial)
   const { categories } = useCategories()
@@ -34,6 +36,7 @@ export function CategoryTransactionsModal({
         scope:       patch.scope,
         splits:      patch.splits,
         notes:       patch.notes,
+        fixed_type:  patch.fixed_type,
       })
     } catch {
       setTransactions(initial)
@@ -86,6 +89,7 @@ export function CategoryTransactionsModal({
             <TransactionList
               transactions={transactions}
               categories={categories}
+              userNames={userNames}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
             />

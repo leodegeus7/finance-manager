@@ -14,6 +14,8 @@ interface Props {
   transactions: Transaction[]
   categories: Category[]
   accounts?: Account[]
+  /** Optional map of user_id → display name. When provided, shows who paid. */
+  userNames?: Record<string, string>
   onUpdate: (id: string, patch: Partial<Transaction> & { notes?: string | null }) => void
   onDelete?: (id: string) => void
 }
@@ -24,7 +26,7 @@ interface PendingModal {
   patch: Partial<Transaction>
 }
 
-export function TransactionList({ transactions, categories, accounts, onUpdate, onDelete }: Props) {
+export function TransactionList({ transactions, categories, accounts, userNames, onUpdate, onDelete }: Props) {
   const [pending, setPending] = useState<PendingModal | null>(null)
 
   // UI Rule 4.5: uncategorized transactions shown first
@@ -95,6 +97,7 @@ export function TransactionList({ transactions, categories, accounts, onUpdate, 
             tx={tx}
             categories={categories}
             accounts={accounts}
+            userNames={userNames}
             onUpdate={handleUpdate}
             onDelete={onDelete}
           />

@@ -23,17 +23,20 @@ interface Props {
   tx: Transaction
   categories: Category[]
   accounts?: Account[]
-  onUpdate: (id: string, patch: Partial<Pick<Transaction, 'type' | 'category_id' | 'context' | 'scope' | 'splits' | 'to_account_id'>> & { notes?: string | null }) => void
+  /** Optional map of user_id → display name. When provided, shows who paid. */
+  userNames?: Record<string, string>
+  onUpdate: (id: string, patch: Partial<Pick<Transaction, 'type' | 'category_id' | 'context' | 'scope' | 'splits' | 'to_account_id' | 'fixed_type'>> & { notes?: string | null }) => void
   onDelete?: (id: string) => void
 }
 
-export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }: Props) {
+export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, onDelete }: Props) {
   const [editing, setEditing] = useState(false)
   const [categoryId, setCategoryId] = useState(tx.category_id ?? '')
   const [context, setContext] = useState(tx.context)
   const [splits, setSplits] = useState<SplitParticipant[] | null>(tx.splits ?? null)
   const [toAccountId, setToAccountId] = useState(tx.to_account_id ?? '')
   const [notes, setNotes] = useState(tx.notes ?? '')
+  const [isFixed, setIsFixed] = useState(tx.fixed_type === 'fixed')
   const [isTransferEdit, setIsTransferEdit] = useState(
     tx.type === 'transfer' || tx.type === 'credit_card_payment'
   )
@@ -49,10 +52,14 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [editing, categoryId, context, splits, notes])
+  }, [editing, categoryId, context, splits, notes, isFixed])
 
   function handleSave() {
     setEditing(false)
+    const fixedType: Transaction['fixed_type'] = isFixed
+      ? 'fixed'
+      : (tx.fixed_type === 'fixed' ? 'variable' : (tx.fixed_type ?? null)) as Transaction['fixed_type']
+
     if (isTransferEdit) {
       onUpdate(tx.id, {
         type: 'transfer',
@@ -60,6 +67,7 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
         splits: null,
         to_account_id: toAccountId || null,
         notes: notes.trim() || null,
+        fixed_type: fixedType,
       })
     } else {
       const inferredType = tx.direction === 'income' ? 'income' : 'expense'
@@ -70,6 +78,7 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
         splits,
         to_account_id: null,
         notes: notes.trim() || null,
+        fixed_type: fixedType,
       })
     }
   }
@@ -178,6 +187,18 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
               </>
             )}
 
+            {/* Marcar como gasto fixo (ex: aluguel, assinaturas, mensalidades) */}
+            <button
+              onClick={() => setIsFixed((v) => !v)}
+              className={`text-xs px-2 py-1 rounded-lg border transition-colors font-medium ${
+                isFixed
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              📌 Gasto fixo
+            </button>
+
             <button
               className="text-xs bg-blue-600 text-white px-3 py-1 rounded-lg font-medium hover:bg-blue-700"
               onClick={(e) => { e.stopPropagation(); handleSave() }}
@@ -193,6 +214,11 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
             {tx.to_account_id && accounts && (
               <span className="text-xs text-gray-400">
                 → {accounts.find((a) => a.id === tx.to_account_id)?.name ?? tx.to_account_id}
+              </span>
+            )}
+            {userNames?.[tx.user_id] && (
+              <span className="text-xs px-1.5 py-0.5 rounded-md bg-gray-50 text-gray-400">
+                {userNames[tx.user_id]}
               </span>
             )}
           </div>
@@ -218,6 +244,16 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
                 </span>
               )
             })()}
+            {tx.fixed_type === 'fixed' && (
+              <span className="text-xs px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 font-medium">
+                📌 fixo
+              </span>
+            )}
+            {userNames?.[tx.user_id] && (
+              <span className="text-xs px-1.5 py-0.5 rounded-md bg-gray-50 text-gray-400">
+                {userNames[tx.user_id]}
+              </span>
+            )}
             {tx.installment_current != null && tx.installment_total != null && (
               <span className="text-xs px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-500 font-medium tabular-nums">
                 {tx.installment_current}/{tx.installment_total}
@@ -247,6 +283,7 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
           <button
             onClick={(e) => {
               e.stopPropagation()
+              if (!window.confirm('Tem certeza que deseja apagar esta transação?')) return
               onDelete(tx.id)
             }}
             className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all text-base leading-none w-4 text-center"
