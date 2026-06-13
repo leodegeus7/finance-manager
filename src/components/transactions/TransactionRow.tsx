@@ -118,17 +118,19 @@ export function TransactionRow({ tx, categories, accounts, onUpdate, onDelete }:
               onChange={(e) => setNotes(e.target.value)}
             />
 
-            {/* Toggle transferência / despesa-receita */}
-            <button
-              onClick={() => setIsTransferEdit((v) => !v)}
-              className={`text-xs px-2 py-1 rounded-lg border transition-colors font-medium ${
-                isTransferEdit
-                  ? 'bg-gray-900 text-white border-gray-900'
-                  : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
-              }`}
-            >
-              ⇄ Transferência
-            </button>
+            {/* Toggle transferência / despesa-receita — não aplicável a transações de cartão */}
+            {!tx.credit_card_id && (
+              <button
+                onClick={() => setIsTransferEdit((v) => !v)}
+                className={`text-xs px-2 py-1 rounded-lg border transition-colors font-medium ${
+                  isTransferEdit
+                    ? 'bg-gray-900 text-white border-gray-900'
+                    : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                ⇄ Transferência
+              </button>
+            )}
 
             {isTransferEdit ? (
               /* Destino da transferência */

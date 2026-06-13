@@ -483,6 +483,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                 if (!draft) return null
                 const isIncome = tx.direction === 'income'
                 const transfer = draft.is_transfer
+                const isCardTx = needsCard || !!tx.credit_card_id
                 const cats = filterCategories(categories, tx.direction)
 
                 return (
@@ -520,17 +521,19 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                     {/* Row 2: transfer toggle + classification */}
                     {tx.type !== 'credit_card_payment' && (
                       <div className="flex flex-wrap items-center gap-2">
-                        {/* Transfer toggle */}
-                        <button
-                          onClick={() => updateDraft(tx.external_id, { is_transfer: !draft.is_transfer, category_id: '', splits: null })}
-                          className={`text-xs px-2 py-1 rounded-lg border transition-colors font-medium shrink-0 ${
-                            draft.is_transfer
-                              ? 'bg-gray-900 text-white border-gray-900'
-                              : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          ⇄ Transferência
-                        </button>
+                        {/* Transfer toggle — não aplicável a transações de cartão */}
+                        {!isCardTx && (
+                          <button
+                            onClick={() => updateDraft(tx.external_id, { is_transfer: !draft.is_transfer, category_id: '', splits: null })}
+                            className={`text-xs px-2 py-1 rounded-lg border transition-colors font-medium shrink-0 ${
+                              draft.is_transfer
+                                ? 'bg-gray-900 text-white border-gray-900'
+                                : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            ⇄ Transferência
+                          </button>
+                        )}
 
                         {transfer && accounts.length > 0 && (
                           <select
