@@ -249,22 +249,42 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
     })
   }
 
-  // Setting a category applies it to every other transaction in this batch
+  // Setting a category can apply it to every other transaction in this batch
   // with the same description (e.g. recurring merchant names), so the user
-  // doesn't have to classify each occurrence individually.
+  // doesn't have to classify each occurrence individually. Asks for
+  // confirmation first when there are matches.
   function updateCategoryForAll(externalId: string, categoryId: string) {
     const tx = normalizedTxs.find((t) => t.external_id === externalId)
     if (!tx) {
       updateDraft(externalId, { category_id: categoryId })
       return
     }
+
+    const matches = normalizedTxs.filter((t) => {
+      if (t.external_id === externalId) return false
+      if (t.description !== tx.description || t.direction !== tx.direction) return false
+      const d = drafts.get(t.external_id)
+      return !!d && !d.is_transfer
+    })
+
+    if (matches.length === 0) {
+      updateDraft(externalId, { category_id: categoryId })
+      return
+    }
+
+    const catName = categories.find((c) => c.id === categoryId)?.name ?? categoryId
+    const applyAll = window.confirm(
+      `Aplicar a categoria "${catName}" também a mais ${matches.length} transação(ões) "${tx.description}"?`
+    )
+
     setDrafts((prev) => {
       const next = new Map(prev)
-      for (const t of normalizedTxs) {
-        if (t.description !== tx.description || t.direction !== tx.direction) continue
-        const d = prev.get(t.external_id)
-        if (!d || d.is_transfer) continue
-        next.set(t.external_id, { ...d, category_id: categoryId })
+      next.set(externalId, { ...prev.get(externalId)!, category_id: categoryId })
+      if (applyAll) {
+        for (const t of matches) {
+          const d = prev.get(t.external_id)!
+          next.set(t.external_id, { ...d, category_id: categoryId })
+        }
       }
       return next
     })
