@@ -76,20 +76,22 @@ export async function fetchCards(userId: string, month: string): Promise<CardRow
       .order('name'),
     supabase
       .from('transactions')
-      .select('credit_card_id, amount')
+      .select('credit_card_id, amount, direction')
       .eq('user_id', userId)
       .eq('statement_month', month)
-      .eq('direction', 'expense')
       .not('credit_card_id', 'is', null),
   ])
 
   if (cardsRes.error) throw cardsRes.error
 
-  // Build totals map from actual transactions
+  // Build totals map from actual transactions.
+  // Expenses add to the invoice total; income (refunds/credits) reduce it —
+  // matches CardTransactionsModal's "Total fatura" calculation.
   const totalsMap = new Map<string, number>()
   for (const tx of txRes.data ?? []) {
     const cid = tx.credit_card_id as string
-    totalsMap.set(cid, (totalsMap.get(cid) ?? 0) + Number(tx.amount))
+    const delta = tx.direction === 'expense' ? Number(tx.amount) : -Number(tx.amount)
+    totalsMap.set(cid, (totalsMap.get(cid) ?? 0) + delta)
   }
 
   return (cardsRes.data ?? []).map((r) => {
