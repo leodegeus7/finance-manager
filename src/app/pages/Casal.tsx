@@ -21,7 +21,7 @@ import { CategoryTransactionsModal } from '@/components/transactions/CategoryTra
 import { formatCurrency, formatMonth, monthRange } from '@/lib/format'
 import { useUser } from '@/lib/UserContext'
 import { fetchPersonalTransactionsByMonth } from '@/lib/db/transactions'
-import { fetchAssets, createAsset } from '@/lib/db/networth'
+import { fetchAssets, createAsset, updateAssetValue } from '@/lib/db/networth'
 import { fetchAccounts, AccountRow } from '@/lib/db/accounts'
 import { Asset, AssetType } from '@/investments/types'
 import { Transaction } from '@/engine/types'
@@ -192,6 +192,27 @@ export function Casal() {
     }
   }
 
+  // ── Editar valor de um ativo ─────────────────────────────────
+  const [editingAssetId, setEditingAssetId] = useState<string | null>(null)
+  const [editAssetValue, setEditAssetValue] = useState('')
+  const [savingEditAsset, setSavingEditAsset] = useState(false)
+
+  function startEditAsset(assetId: string, currentValue: number) {
+    setEditingAssetId(assetId)
+    setEditAssetValue(String(currentValue).replace('.', ','))
+  }
+
+  async function handleSaveAssetValue(assetId: string) {
+    setSavingEditAsset(true)
+    try {
+      await updateAssetValue(assetId, parseFloat(editAssetValue.replace(',', '.')) || 0)
+      setEditingAssetId(null)
+      loadAssets()
+    } finally {
+      setSavingEditAsset(false)
+    }
+  }
+
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
 
@@ -339,7 +360,6 @@ export function Casal() {
           <div className="space-y-2">
             {sharedAssets.map((asset) => {
               const owner = USER_NAMES[asset.user_id] ?? asset.user_id
-              const linkedAccount = accounts.find((a) => a.id === asset.linked_account_id)
               return (
                 <Card key={asset.id} padding="md">
                   <div className="flex items-center justify-between">
@@ -348,15 +368,32 @@ export function Casal() {
                       <p className="text-xs text-gray-400 mt-0.5 capitalize">
                         {asset.type === 'financial' ? 'Financeiro' : 'Real'} · de {owner}
                       </p>
-                      {asset.linked_account_id && (
-                        <p className="text-xs text-amber-600 mt-0.5">
-                          Incluído no saldo de {linkedAccount?.name ?? 'uma conta'} · não soma no patrimônio
-                        </p>
-                      )}
                     </div>
-                    <p className="text-base font-bold tabular-nums text-gray-900">
-                      {formatCurrency(asset.current_value)}
-                    </p>
+                    {editingAssetId === asset.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          autoFocus
+                          className="w-24 text-sm text-right border border-gray-200 rounded-lg px-2 py-1 tabular-nums focus:outline-none focus:ring-1 focus:ring-gray-300"
+                          value={editAssetValue}
+                          onChange={(e) => setEditAssetValue(e.target.value)}
+                        />
+                        <button
+                          onClick={() => handleSaveAssetValue(asset.id)}
+                          disabled={savingEditAsset}
+                          className="text-xs text-blue-600 font-medium hover:underline disabled:opacity-40"
+                        >
+                          OK
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startEditAsset(asset.id, asset.current_value)}
+                        className="text-base font-bold tabular-nums text-gray-900 hover:underline"
+                      >
+                        {formatCurrency(asset.current_value)}
+                      </button>
+                    )}
                   </div>
                 </Card>
               )

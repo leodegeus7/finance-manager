@@ -208,3 +208,12 @@ export async function createAsset(userId: string, input: NewAssetInput): Promise
     })
   if (error) throw error
 }
+
+/** Updates the current value of an existing asset. */
+export async function updateAssetValue(assetId: string, currentValue: number): Promise<void> {
+  const { error } = await supabase
+    .from('assets')
+    .update({ current_value: currentValue })
+    .eq('id', assetId)
+  if (error) throw error
+}

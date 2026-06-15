@@ -18,7 +18,7 @@ import { useNetWorth } from '@/lib/hooks/useNetWorth'
 import { useUser } from '@/lib/UserContext'
 import { computeSplitReport } from '@/engine/SplitEngine'
 import { fetchSplitTransactionsByMonth } from '@/lib/db/transactions'
-import { createAsset } from '@/lib/db/networth'
+import { createAsset, updateAssetValue } from '@/lib/db/networth'
 import { AssetType } from '@/investments/types'
 import { useState, useEffect } from 'react'
 
@@ -82,6 +82,27 @@ export function NetWorth() {
       setAssetError(String(e))
     } finally {
       setSavingAsset(false)
+    }
+  }
+
+  // ── Editar valor de um ativo ─────────────────────────────────
+  const [editingAssetId, setEditingAssetId] = useState<string | null>(null)
+  const [editAssetValue, setEditAssetValue] = useState('')
+  const [savingEditAsset, setSavingEditAsset] = useState(false)
+
+  function startEditAsset(assetId: string, currentValue: number) {
+    setEditingAssetId(assetId)
+    setEditAssetValue(String(currentValue).replace('.', ','))
+  }
+
+  async function handleSaveAssetValue(assetId: string) {
+    setSavingEditAsset(true)
+    try {
+      await updateAssetValue(assetId, parseFloat(editAssetValue.replace(',', '.')) || 0)
+      setEditingAssetId(null)
+      reload()
+    } finally {
+      setSavingEditAsset(false)
     }
   }
 
@@ -269,9 +290,31 @@ export function NetWorth() {
                         <p className="text-xs text-blue-500 mt-0.5">Compartilhado com o casal</p>
                       )}
                     </div>
-                    <p className="text-base font-bold tabular-nums text-gray-900">
-                      {formatCurrency(asset.current_value)}
-                    </p>
+                    {editingAssetId === asset.id ? (
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          autoFocus
+                          className="w-24 text-sm text-right border border-gray-200 rounded-lg px-2 py-1 tabular-nums focus:outline-none focus:ring-1 focus:ring-gray-300"
+                          value={editAssetValue}
+                          onChange={(e) => setEditAssetValue(e.target.value)}
+                        />
+                        <button
+                          onClick={() => handleSaveAssetValue(asset.id)}
+                          disabled={savingEditAsset}
+                          className="text-xs text-blue-600 font-medium hover:underline disabled:opacity-40"
+                        >
+                          OK
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => startEditAsset(asset.id, asset.current_value)}
+                        className="text-base font-bold tabular-nums text-gray-900 hover:underline"
+                      >
+                        {formatCurrency(asset.current_value)}
+                      </button>
+                    )}
                   </div>
                 </Card>
               )
