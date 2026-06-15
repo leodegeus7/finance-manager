@@ -12,6 +12,8 @@ interface Props {
   transactions: Transaction[]
   /** Optional map of user_id → display name. When provided, shows who paid. */
   userNames?: Record<string, string>
+  /** Text shown after the month in the subtitle (e.g. "compartilhado"). Defaults to "compartilhado". */
+  subtitle?: string
   onClose: () => void
   /** Notify the parent so it can keep its own copy of the data in sync */
   onUpdate?: (id: string, patch: Partial<Transaction> & { notes?: string | null }) => void
@@ -19,7 +21,7 @@ interface Props {
 }
 
 export function CategoryTransactionsModal({
-  categoryName, month, transactions: initial, userNames, onClose, onUpdate, onDelete,
+  categoryName, month, transactions: initial, userNames, subtitle = 'compartilhado', onClose, onUpdate, onDelete,
 }: Props) {
   const [transactions, setTransactions] = useState(initial)
   const { categories } = useCategories()
@@ -62,7 +64,7 @@ export function CategoryTransactionsModal({
           <div>
             <h2 className="text-base font-semibold text-gray-900">{categoryName}</h2>
             <p className="text-sm text-gray-400 mt-0.5 capitalize">
-              {formatMonth(month)} · compartilhado
+              {formatMonth(month)} · {subtitle}
             </p>
           </div>
           <div className="flex items-center gap-4">

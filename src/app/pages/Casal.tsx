@@ -18,9 +18,12 @@ import { Card, CardTitle } from '@/components/ui/Card'
 import { SharedCategoryBarChart } from '@/components/charts/SharedCategoryBarChart'
 import { DailySpendingChart } from '@/components/charts/DailySpendingChart'
 import { CategoryTransactionsModal } from '@/components/transactions/CategoryTransactionsModal'
-import { formatCurrency, formatMonth } from '@/lib/format'
+import { formatCurrency, formatMonth, monthRange } from '@/lib/format'
 import { useUser } from '@/lib/UserContext'
 import { fetchPersonalTransactionsByMonth } from '@/lib/db/transactions'
+import { fetchAssets, createAsset } from '@/lib/db/networth'
+import { fetchAccounts, AccountRow } from '@/lib/db/accounts'
+import { Asset, AssetType } from '@/investments/types'
 import { Transaction } from '@/engine/types'
 import {
   COUPLE_START_MONTH,
@@ -33,21 +36,6 @@ import {
 
 const USER_NAMES: Record<string, string> = { leo: 'Leonardo', murilo: 'Murilo' }
 
-/** Lista de meses (YYYY-MM-01) entre `start` e `end`, inclusive, ordem crescente */
-function monthRange(start: string, end: string): string[] {
-  const months: string[] = []
-  let [y, m] = start.split('-').map(Number)
-  const [endY, endM] = end.split('-').map(Number)
-
-  while (y < endY || (y === endY && m <= endM)) {
-    months.push(`${y}-${String(m).padStart(2, '0')}-01`)
-    m++
-    if (m > 12) { m = 1; y++ }
-  }
-
-  return months
-}
-
 async function fetchSharedTransactions(month: string): Promise<Transaction[]> {
   const [leoTxs, muriloTxs] = await Promise.all([
     fetchPersonalTransactionsByMonth(month, 'leo'),
@@ -57,7 +45,7 @@ async function fetchSharedTransactions(month: string): Promise<Transaction[]> {
 }
 
 export function Casal() {
-  const { month } = useUser()
+  const { userId, month } = useUser()
 
   // ── Análise do mês selecionado ──────────────────────────────
   const [monthTxs, setMonthTxs] = useState<Transaction[]>([])
@@ -154,6 +142,55 @@ export function Casal() {
     if (!selectedHistorySelection?.userId) return selectedHistory.transactions
     return selectedHistory.transactions.filter((tx) => tx.user_id === selectedHistorySelection.userId)
   }, [selectedHistory, selectedHistorySelection])
+
+  // ── Patrimônio do casal (ativos compartilhados) ─────────────
+  const [sharedAssets, setSharedAssets] = useState<Asset[]>([])
+  const [accounts, setAccounts] = useState<AccountRow[]>([])
+  const [assetsLoading, setAssetsLoading] = useState(true)
+
+  const loadAssets = () => {
+    setAssetsLoading(true)
+    Promise.all([fetchAssets(userId), fetchAccounts(userId)])
+      .then(([assets, accs]) => {
+        setSharedAssets(assets.filter((a) => a.is_shared))
+        setAccounts(accs)
+      })
+      .catch(() => { setSharedAssets([]); setAccounts([]) })
+      .finally(() => setAssetsLoading(false))
+  }
+
+  useEffect(loadAssets, [userId])
+
+  const [showAddAsset, setShowAddAsset] = useState(false)
+  const [assetName, setAssetName] = useState('')
+  const [assetType, setAssetType] = useState<AssetType>('financial')
+  const [assetValue, setAssetValue] = useState('')
+  const [linkToAccount, setLinkToAccount] = useState(false)
+  const [assetAccountId, setAssetAccountId] = useState('')
+  const [savingAsset, setSavingAsset] = useState(false)
+  const [assetError, setAssetError] = useState('')
+
+  async function handleAddAsset() {
+    if (!assetName.trim()) return
+    setSavingAsset(true)
+    setAssetError('')
+    try {
+      await createAsset(userId, {
+        name: assetName.trim(),
+        type: assetType,
+        current_value: parseFloat(assetValue.replace(',', '.')) || 0,
+        linked_account_id: linkToAccount ? (assetAccountId || null) : null,
+        is_shared: true,
+      })
+      setAssetName(''); setAssetValue(''); setLinkToAccount(false); setAssetAccountId('')
+      setShowAddAsset(false)
+      loadAssets()
+    } catch (e) {
+      setAssetError(String(e))
+    } finally {
+      setSavingAsset(false)
+    }
+  }
 
   return (
     <div className="p-8 max-w-4xl mx-auto space-y-8">
@@ -279,6 +316,134 @@ export function Casal() {
                 </div>
               </Card>
             ))}
+          </div>
+        )}
+      </section>
+
+      {/* Patrimônio do casal */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+            Patrimônio do casal
+          </h2>
+          <button
+            onClick={() => setShowAddAsset((v) => !v)}
+            className="text-xs text-blue-600 font-medium hover:underline"
+          >
+            {showAddAsset ? 'Cancelar' : '+ Adicionar ativo'}
+          </button>
+        </div>
+
+        {showAddAsset && (
+          <Card padding="md">
+            <p className="text-xs font-medium text-gray-500 mb-3">Novo ativo compartilhado</p>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Nome</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Investimento XP"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-gray-300"
+                  value={assetName}
+                  onChange={(e) => setAssetName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Tipo</label>
+                <select
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-gray-300"
+                  value={assetType}
+                  onChange={(e) => setAssetType(e.target.value as AssetType)}
+                >
+                  <option value="financial">Financeiro</option>
+                  <option value="real">Real</option>
+                </select>
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className="text-xs text-gray-400 block mb-1">Valor atual (R$)</label>
+              <input
+                type="text"
+                placeholder="0,00"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-gray-300"
+                value={assetValue}
+                onChange={(e) => setAssetValue(e.target.value)}
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={linkToAccount}
+                  onChange={(e) => setLinkToAccount(e.target.checked)}
+                />
+                Esse valor já faz parte do saldo de uma conta (não somar no patrimônio)
+              </label>
+              {linkToAccount && (
+                <select
+                  className="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-gray-300"
+                  value={assetAccountId}
+                  onChange={(e) => setAssetAccountId(e.target.value)}
+                >
+                  <option value="">Selecione uma conta</option>
+                  {accounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>{acc.name}</option>
+                  ))}
+                </select>
+              )}
+              {!linkToAccount && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Vai contar como patrimônio separado, compartilhado com o casal
+                </p>
+              )}
+            </div>
+
+            {assetError && (
+              <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-2">{assetError}</p>
+            )}
+            <button
+              onClick={handleAddAsset}
+              disabled={savingAsset || !assetName.trim() || (linkToAccount && !assetAccountId)}
+              className="w-full bg-gray-900 text-white text-sm font-medium py-2 rounded-xl disabled:opacity-40 hover:bg-gray-700 transition-colors"
+            >
+              {savingAsset ? 'Salvando...' : 'Salvar ativo'}
+            </button>
+          </Card>
+        )}
+
+        {assetsLoading ? (
+          <p className="text-sm text-gray-400">Carregando...</p>
+        ) : sharedAssets.length === 0 ? (
+          <Card padding="md">
+            <p className="text-sm text-gray-400 text-center py-2">Nenhum ativo compartilhado cadastrado</p>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {sharedAssets.map((asset) => {
+              const owner = USER_NAMES[asset.user_id] ?? asset.user_id
+              const linkedAccount = accounts.find((a) => a.id === asset.linked_account_id)
+              return (
+                <Card key={asset.id} padding="md">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{asset.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 capitalize">
+                        {asset.type === 'financial' ? 'Financeiro' : 'Real'} · de {owner}
+                      </p>
+                      {asset.linked_account_id && (
+                        <p className="text-xs text-amber-600 mt-0.5">
+                          Incluído no saldo de {linkedAccount?.name ?? 'uma conta'} · não soma no patrimônio
+                        </p>
+                      )}
+                    </div>
+                    <p className="text-base font-bold tabular-nums text-gray-900">
+                      {formatCurrency(asset.current_value)}
+                    </p>
+                  </div>
+                </Card>
+              )
+            })}
           </div>
         )}
       </section>

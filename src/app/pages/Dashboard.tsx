@@ -8,29 +8,63 @@
 // Block 4 — Insights:  3–5 insights (UI Rule 3.2)
 // ============================================================
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Amount, DeltaBadge } from '@/components/ui/Amount'
 import { InsightCard } from '@/components/ui/InsightCard'
 import { NetWorthChart } from '@/components/charts/NetWorthChart'
 import { CategoryBars } from '@/components/charts/CategoryBars'
-import { formatCurrency, formatMonth } from '@/lib/format'
+import { MonthlyFlowChart } from '@/components/charts/MonthlyFlowChart'
+import { CategoryTransactionsModal } from '@/components/transactions/CategoryTransactionsModal'
+import { formatCurrency, formatMonth, monthRange } from '@/lib/format'
 import { MOCK_INSIGHTS } from '@/lib/mock'
-import { applyFilters, computeCashFlow, computeCategoryBreakdown } from '@/engine/CashFlowEngine'
+import { applyFilters, computeCashFlow, computeCategoryBreakdown, computeMonthlyFinancialSeries } from '@/engine/CashFlowEngine'
 import { netWorthForMonth } from '@/investments/NetWorthEngine'
 import { useTransactions } from '@/lib/hooks/useTransactions'
 import { useNetWorth } from '@/lib/hooks/useNetWorth'
+import { useTransactionsSince } from '@/lib/hooks/useTransactionsSince'
 import { useUser } from '@/lib/UserContext'
+
+// Início do recorte mensal de investimentos/custos/receita (Block 5)
+const FLOW_START_MONTH = '2026-04-01'
 
 export function Dashboard() {
   const { userId, userName, month } = useUser()
-  const { transactions, loading: txLoading } = useTransactions(month, userId)
+  const { transactions, loading: txLoading, handleUpdate, refetch } = useTransactions(month, userId)
   const { timeline, loading: nwLoading }     = useNetWorth(userId, month)
+  const { transactions: flowTxs, loading: flowLoading } = useTransactionsSince(FLOW_START_MONTH, userId)
+  const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null)
 
   const monthTxs   = useMemo(() => applyFilters(transactions, { month }), [transactions, month])
   const cashFlow   = useMemo(() => computeCashFlow(monthTxs), [monthTxs])
   const categories = useMemo(() => computeCategoryBreakdown(monthTxs), [monthTxs])
   const netWorth   = netWorthForMonth(timeline, month)
+
+  const selectedTxs = useMemo(() => {
+    if (!selectedCategory) return []
+    return monthTxs.filter((tx) => (tx.category_id ?? '__uncategorized__') === selectedCategory.id)
+  }, [monthTxs, selectedCategory])
+
+  const handleCategoryClick = (categoryId: string) => {
+    const cat = categories.find((c) => c.category_id === categoryId)
+    if (!cat) return
+    setSelectedCategory({ id: cat.category_id, name: cat.category_name })
+  }
+
+  const flowMonths = useMemo(() => monthRange(FLOW_START_MONTH, month), [month])
+  const monthlyFlow = useMemo(() => {
+    const series = computeMonthlyFinancialSeries(flowTxs, flowMonths)
+    // Esconde meses no fim da série em que nada foi lançado ainda
+    // (receita, despesas e investimentos todos zerados).
+    let end = series.length
+    while (
+      end > 0 &&
+      series[end - 1].income === 0 &&
+      series[end - 1].expenses === 0 &&
+      series[end - 1].investments === 0
+    ) end--
+    return series.slice(0, end)
+  }, [flowTxs, flowMonths])
 
   const loading = txLoading || nwLoading
 
@@ -108,14 +142,26 @@ export function Dashboard() {
         </div>
       </Card>
 
+      {/* ── Block: Investimentos, despesas e receita mês a mês ── */}
+      <Card padding="md">
+        <CardTitle>Investimentos, despesas e receita por mês</CardTitle>
+        <p className="text-xs text-gray-400 -mt-0.5 mb-2">
+          Desde {formatMonth(FLOW_START_MONTH)} · transferências para o Banco XP contam como investimento
+        </p>
+        <div className="mt-4">
+          {!flowLoading && <MonthlyFlowChart data={monthlyFlow} />}
+        </div>
+      </Card>
+
       {/* ── Block 3 + 4: Gastos & Insights ──────────────────── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
         {/* Block 3 — Gastos por categoria */}
         <Card padding="md">
           <CardTitle>Gastos por categoria</CardTitle>
+          <p className="text-xs text-gray-400 -mt-0.5 mb-2">Clique em uma categoria para ver as transações</p>
           <div className="mt-4">
-            {!txLoading && <CategoryBars data={categories} />}
+            {!txLoading && <CategoryBars data={categories} onCategoryClick={handleCategoryClick} />}
           </div>
         </Card>
 
@@ -137,6 +183,18 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      {selectedCategory && (
+        <CategoryTransactionsModal
+          categoryName={selectedCategory.name}
+          month={month}
+          transactions={selectedTxs}
+          subtitle={userName}
+          onClose={() => setSelectedCategory(null)}
+          onUpdate={handleUpdate}
+          onDelete={() => refetch()}
+        />
+      )}
     </div>
   )
 }

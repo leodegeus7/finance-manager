@@ -6,9 +6,10 @@ import { formatCurrency } from '@/lib/format'
 interface Props {
   data: CategoryBreakdown[]
   maxItems?: number
+  onCategoryClick?: (categoryId: string) => void
 }
 
-export function CategoryBars({ data, maxItems = 6 }: Props) {
+export function CategoryBars({ data, maxItems = 6, onCategoryClick }: Props) {
   const top = data.slice(0, maxItems)
 
   if (top.length === 0) {
@@ -24,7 +25,11 @@ export function CategoryBars({ data, maxItems = 6 }: Props) {
   return (
     <div className="space-y-3">
       {top.map((cat) => (
-        <div key={cat.category_id}>
+        <div
+          key={cat.category_id}
+          onClick={onCategoryClick ? () => onCategoryClick(cat.category_id) : undefined}
+          className={onCategoryClick ? 'cursor-pointer' : undefined}
+        >
           <div className="flex justify-between items-center mb-1">
             <span className="text-sm text-gray-700 font-medium truncate max-w-[55%]">
               {cat.category_name}

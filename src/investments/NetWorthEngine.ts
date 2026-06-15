@@ -29,9 +29,11 @@ export function computeNetWorth(
     accounts.reduce((s, a) => s + a.balance, 0),
   )
 
+  // Assets linked to an account are already part of that account's balance
+  // (accounts_total) — exclude them here to avoid double counting.
   const assetsTotal = round(
     assets
-      .filter((a) => a.is_active)
+      .filter((a) => a.is_active && !a.linked_account_id)
       .reduce((s, a) => s + a.current_value, 0),
   )
 
@@ -143,7 +145,7 @@ export function buildNetWorthBreakdown(
     assets: activeAssets.map((asset) => ({
       asset,
       percentage_of_total:
-        net_worth > 0
+        net_worth > 0 && !asset.linked_account_id
           ? round((asset.current_value / net_worth) * 100)
           : 0,
     })),

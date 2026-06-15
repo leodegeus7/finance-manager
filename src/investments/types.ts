@@ -15,6 +15,12 @@ export interface Asset {
   type: AssetType
   current_value: number  // always the CURRENT value (updated by movements)
   is_active: boolean
+  // When set, this asset's value is already part of the linked account's
+  // balance — shown in lists but excluded from net worth totals.
+  linked_account_id?: string | null
+  // When true, this asset is shared between Leo and Murilo and shows up on
+  // both their Patrimônio pages.
+  is_shared: boolean
   created_at: string
   updated_at: string
 }

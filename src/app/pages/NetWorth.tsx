@@ -126,21 +126,35 @@ export function NetWorth() {
             Investimentos & Ativos
           </h2>
           <div className="space-y-2">
-            {breakdown.assets.map(({ asset, percentage_of_total }) => (
-              <Card key={asset.id} padding="sm">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{asset.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5 capitalize">
-                      {asset.type === 'financial' ? 'Financeiro' : 'Real'} · {percentage_of_total.toFixed(1)}% do patrimônio
+            {breakdown.assets.map(({ asset, percentage_of_total }) => {
+              const linkedAccount = asset.linked_account_id
+                ? enrichedAccounts.find((a) => a.id === asset.linked_account_id)
+                : undefined
+              return (
+                <Card key={asset.id} padding="sm">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">{asset.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 capitalize">
+                        {asset.type === 'financial' ? 'Financeiro' : 'Real'}
+                        {!asset.linked_account_id && ` · ${percentage_of_total.toFixed(1)}% do patrimônio`}
+                      </p>
+                      {asset.linked_account_id && (
+                        <p className="text-xs text-amber-600 mt-0.5">
+                          Incluído no saldo de {linkedAccount?.name ?? 'uma conta'} · não soma no total
+                        </p>
+                      )}
+                      {asset.is_shared && (
+                        <p className="text-xs text-blue-500 mt-0.5">Compartilhado com o casal</p>
+                      )}
+                    </div>
+                    <p className="text-base font-bold tabular-nums text-gray-900">
+                      {formatCurrency(asset.current_value)}
                     </p>
                   </div>
-                  <p className="text-base font-bold tabular-nums text-gray-900">
-                    {formatCurrency(asset.current_value)}
-                  </p>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              )
+            })}
           </div>
         </section>
       </div>

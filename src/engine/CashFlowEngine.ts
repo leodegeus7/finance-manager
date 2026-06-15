@@ -229,6 +229,60 @@ export function computeInvestedAmount(transactions: Transaction[]): number {
   )
 }
 
+/**
+ * Matches transfers to/from the user's brokerage account (Banco XP).
+ * These are reclassified as investment movements for the monthly
+ * investments/expenses/income overview on the Dashboard.
+ */
+const XP_TRANSFER_PATTERN = /banco xp/i
+
+export function isXpInvestmentTransfer(tx: Transaction): boolean {
+  return tx.type === 'transfer' && XP_TRANSFER_PATTERN.test(tx.description)
+}
+
+export interface MonthlyFinancialPoint {
+  month: string
+  income: number
+  expenses: number
+  investments: number
+}
+
+/**
+ * Computes income, expenses and investments per month for the given list
+ * of months. Investments combine `investment_contribution`/`investment_withdrawal`
+ * transactions with transfers to/from Banco XP (see isXpInvestmentTransfer).
+ */
+export function computeMonthlyFinancialSeries(
+  transactions: Transaction[],
+  months: string[],
+): MonthlyFinancialPoint[] {
+  return months.map((month) => {
+    const monthTxs = transactions.filter((tx) => effectiveMonth(tx) === month)
+
+    let income = 0
+    let expenses = 0
+    let investments = 0
+
+    for (const tx of monthTxs) {
+      if (isCountableIncome(tx)) {
+        income += tx.amount
+      } else if (isCountableExpense(tx)) {
+        expenses += tx.amount
+      }
+
+      if (tx.type === 'investment_contribution') {
+        investments += tx.amount
+      } else if (tx.type === 'investment_withdrawal') {
+        investments -= tx.amount
+      } else if (isXpInvestmentTransfer(tx)) {
+        investments += tx.direction === 'expense' ? tx.amount : -tx.amount
+      }
+    }
+
+    return { month, income: round(income), expenses: round(expenses), investments: round(investments) }
+  })
+}
+
 // ─── Utils ────────────────────────────────────────────────────
 
 function round(n: number): number {

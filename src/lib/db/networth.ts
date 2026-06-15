@@ -154,23 +154,57 @@ export async function upsertAccountBalance(accountId: string, month: string, bal
   }
 }
 
+function toAsset(r: Record<string, unknown>): Asset {
+  return {
+    id:                r.id as string,
+    user_id:           r.user_id as string,
+    name:              r.name as string,
+    type:              r.type as Asset['type'],
+    current_value:     Number(r.current_value),
+    is_active:         Boolean(r.is_active),
+    linked_account_id: r.linked_account_id as string | null,
+    is_shared:         Boolean(r.is_shared),
+    created_at:        r.created_at as string,
+    updated_at:        r.updated_at as string,
+  }
+}
+
+/**
+ * Fetches a user's active assets, plus any shared assets owned by other
+ * users (so couple-shared assets show up on both Patrimônio pages).
+ */
 export async function fetchAssets(userId: string): Promise<Asset[]> {
   const { data, error } = await supabase
     .from('assets')
     .select('*')
-    .eq('user_id', userId)
     .eq('is_active', true)
+    .or(`user_id.eq.${userId},is_shared.eq.true`)
     .order('name')
 
   if (error) throw error
-  return (data ?? []).map((r) => ({
-    id:            r.id as string,
-    user_id:       r.user_id as string,
-    name:          r.name as string,
-    type:          r.type as Asset['type'],
-    current_value: Number(r.current_value),
-    is_active:     Boolean(r.is_active),
-    created_at:    r.created_at as string,
-    updated_at:    r.updated_at as string,
-  }))
+  return (data ?? []).map(toAsset)
+}
+
+export interface NewAssetInput {
+  name: string
+  type: Asset['type']
+  current_value: number
+  linked_account_id?: string | null
+  is_shared: boolean
+}
+
+/** Creates a new asset (e.g. a shared investment) owned by `userId`. */
+export async function createAsset(userId: string, input: NewAssetInput): Promise<void> {
+  const { error } = await supabase
+    .from('assets')
+    .insert({
+      id:                crypto.randomUUID(),
+      user_id:           userId,
+      name:              input.name,
+      type:              input.type,
+      current_value:     input.current_value,
+      linked_account_id: input.linked_account_id ?? null,
+      is_shared:         input.is_shared,
+    })
+  if (error) throw error
 }

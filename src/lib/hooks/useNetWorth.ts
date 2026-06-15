@@ -72,7 +72,7 @@ export function useNetWorth(userId: string, selectedMonth: string) {
   // Total of active assets/investments (no per-month history, so it's a
   // current snapshot applied across the timeline).
   const assetsTotal = useMemo(
-    () => round(assets.filter((a) => a.is_active).reduce((s, a) => s + a.current_value, 0)),
+    () => round(assets.filter((a) => a.is_active && !a.linked_account_id).reduce((s, a) => s + a.current_value, 0)),
     [assets],
   )
 

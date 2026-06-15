@@ -267,14 +267,22 @@ create index idx_tx_category_id      on transactions(category_id);
 
 -- ── ASSETS ───────────────────────────────────────────────────
 create table assets (
-  id            text primary key default gen_random_uuid()::text,
-  user_id       text not null references users(id),
-  name          text not null,
-  type          text not null check (type in ('financial','real')),
-  current_value numeric(14,2) not null default 0,
-  is_active     boolean not null default true,
-  created_at    timestamptz default now(),
-  updated_at    timestamptz default now()
+  id                text primary key default gen_random_uuid()::text,
+  user_id           text not null references users(id),
+  name              text not null,
+  type              text not null check (type in ('financial','real')),
+  current_value     numeric(14,2) not null default 0,
+  is_active         boolean not null default true,
+  -- When set, this asset's value is already part of the linked account's
+  -- balance (e.g. an investment held inside a brokerage account) — it's
+  -- shown in the assets list but NOT added to net worth, to avoid double
+  -- counting.
+  linked_account_id text references accounts(id),
+  -- When true, this asset is shared between Leo and Murilo and shows up on
+  -- both their Patrimônio pages (each still sees it as part of their total).
+  is_shared         boolean not null default false,
+  created_at        timestamptz default now(),
+  updated_at        timestamptz default now()
 );
 
 insert into assets (id, user_id, name, type, current_value) values

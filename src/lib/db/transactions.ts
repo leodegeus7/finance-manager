@@ -76,6 +76,29 @@ export async function fetchTransactionsByMonth(month: string, userId: string): P
   return (data ?? []).map(toTransaction)
 }
 
+/**
+ * Fetches all transactions for a user from `startMonth` (YYYY-MM-01) onward,
+ * based on effective month (statement_month for card purchases, otherwise
+ * competency_month). Used for multi-month series on the Dashboard.
+ */
+export async function fetchTransactionsSince(startMonth: string, userId: string): Promise<Transaction[]> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(`
+      *,
+      categories:category_id (
+        id, name,
+        parent:parent_id ( id, name )
+      )
+    `)
+    .eq('user_id', userId)
+    .or(`competency_month.gte.${startMonth},statement_month.gte.${startMonth}`)
+    .order('date', { ascending: false })
+
+  if (error) throw error
+  return (data ?? []).map(toTransaction)
+}
+
 /** Insert a single manually-entered transaction. Returns the new row id. */
 export async function createManualTransaction(input: ManualTransactionInput): Promise<string> {
   const competency_month = input.date.slice(0, 7) + '-01'
@@ -224,6 +247,25 @@ export async function fetchTransactionsByCard(cardId: string, month: string): Pr
     `)
     .eq('credit_card_id', cardId)
     .eq('statement_month', month)
+    .order('date', { ascending: false })
+
+  if (error) throw error
+  return (data ?? []).map(toTransaction)
+}
+
+/** Fetches all of a card's transactions with `statement_month >= startMonth`. */
+export async function fetchCardTransactionsSince(cardId: string, startMonth: string): Promise<Transaction[]> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select(`
+      *,
+      categories:category_id (
+        id, name,
+        parent:parent_id ( id, name )
+      )
+    `)
+    .eq('credit_card_id', cardId)
+    .gte('statement_month', startMonth)
     .order('date', { ascending: false })
 
   if (error) throw error

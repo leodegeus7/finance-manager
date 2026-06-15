@@ -11,8 +11,59 @@ import {
 } from '@/lib/db/accounts'
 import { fetchLatestAccountBalances, AccountLatestEntry, enrichAccounts } from '@/lib/db/networth'
 import { CardTransactionsModal } from '@/components/cards/CardTransactionsModal'
+import { CardInvoiceChart } from '@/components/charts/CardInvoiceChart'
+import { useCardInvoiceHistory } from '@/lib/hooks/useCardInvoiceHistory'
 
 const BANKS = ['nubank', 'inter', 'c6', 'itaú', 'bradesco', 'santander', 'caixa', 'bb', 'sicoob', 'outro']
+
+const INVOICE_START_MONTH = '2026-04-01'
+
+/** Per-card invoice history chart — wrapped in its own component so the
+ *  data-fetching hook isn't called inside a `.map()` loop. */
+function CardInvoiceSection({ cardId, currentMonth }: { cardId: string; currentMonth: string }) {
+  const endMonth = currentMonth < INVOICE_START_MONTH ? INVOICE_START_MONTH : currentMonth
+  const { series, loading } = useCardInvoiceHistory(cardId, INVOICE_START_MONTH, endMonth)
+  const [open, setOpen] = useState(false)
+
+  if (loading || series.length === 0) return null
+
+  // Se as faturas reais (não projetadas) dos últimos 3 meses estão todas
+  // zeradas, esconde o gráfico por padrão (mas permite abrir sob demanda).
+  const realMonths   = series.filter((m) => !m.projected)
+  const last3        = realMonths.slice(-3)
+  const allEmpty     = last3.length > 0 && last3.every((m) => m.total === 0)
+
+  if (allEmpty && !open) {
+    return (
+      <div className="mt-4 pt-4 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={() => setOpen(true)}
+          className="text-xs font-medium text-gray-400 hover:text-gray-600 uppercase tracking-wide transition-colors"
+        >
+          Histórico de fatura ▾
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
+      {allEmpty ? (
+        <button
+          onClick={() => setOpen(false)}
+          className="text-xs font-medium text-gray-400 hover:text-gray-600 uppercase tracking-wide mb-2 transition-colors"
+        >
+          Histórico de fatura ▴
+        </button>
+      ) : (
+        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
+          Histórico de fatura
+        </p>
+      )}
+      <CardInvoiceChart data={series} />
+    </div>
+  )
+}
 
 // ── Delete confirmation state ─────────────────────────────────
 // step 0 = idle
@@ -424,6 +475,8 @@ export function AccountsCards() {
                       </p>
                     </div>
                   </div>
+
+                  <CardInvoiceSection cardId={card.id} currentMonth={month} />
 
                   {card.status !== 'paid' && (
                     <button
