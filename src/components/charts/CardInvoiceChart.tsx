@@ -29,7 +29,7 @@ export function CardInvoiceChart({ data, onMonthClick }: Props) {
     fullMonth: d.month,
     normal: round2(d.total - d.installments),
     Parcelado: d.installments,
-    '% Parcelado': d.installmentsPct,
+    '% Parcelado': d.projected ? null : d.installmentsPct,
     total: d.total,
     projected: d.projected,
   }))
@@ -71,9 +71,11 @@ export function CardInvoiceChart({ data, onMonthClick }: Props) {
             width={40}
           />
           <Tooltip
-            formatter={(v: number, name: string) =>
-              name === '% Parcelado' ? [`${v}%`, name] : [formatCurrency(v), name]
-            }
+            formatter={(v: number, name: string, entry: any) => {
+              if (name === '% Parcelado') return [`${v}%`, name]
+              if (name === 'Fatura') return [formatCurrency(entry?.payload?.total ?? v), name]
+              return [formatCurrency(v), name]
+            }}
             labelFormatter={(_, payload) => {
               const p = payload?.[0]?.payload
               if (!p) return ''
