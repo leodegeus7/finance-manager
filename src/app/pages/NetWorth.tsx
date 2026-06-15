@@ -20,11 +20,14 @@ import { computeSplitReport } from '@/engine/SplitEngine'
 import { fetchSplitTransactionsByMonth } from '@/lib/db/transactions'
 import { createAsset, updateAssetValue } from '@/lib/db/networth'
 import { AssetType } from '@/investments/types'
+import { IncomeEvolutionChart } from '@/components/charts/IncomeEvolutionChart'
+import { useTransactionsSince } from '@/lib/hooks/useTransactionsSince'
 import { useState, useEffect } from 'react'
 
 export function NetWorth() {
   const { userId, userName, month } = useUser()
   const { timeline, assets, enrichedAccounts, loading, error, reload } = useNetWorth(userId, month)
+  const { transactions: incomeTxs } = useTransactionsSince('2026-04-01', userId)
 
   // Split transactions: fetch by both competency_month AND statement_month
   const [splitTxs, setSplitTxs] = useState<import('@/engine/types').Transaction[]>([])
@@ -147,6 +150,15 @@ export function NetWorth() {
         <CardTitle>Evolução</CardTitle>
         <div className="mt-4">
           {!loading && <NetWorthChart data={timeline} />}
+        </div>
+      </Card>
+
+      {/* Income evolution */}
+      <Card padding="md">
+        <CardTitle>Evolução da renda</CardTitle>
+        <p className="text-xs text-gray-400 -mt-0.5 mb-2">Salário, Freelancer e Fazenda · histórico desde Dez/2018</p>
+        <div className="mt-4">
+          <IncomeEvolutionChart liveTxs={incomeTxs} />
         </div>
       </Card>
 
