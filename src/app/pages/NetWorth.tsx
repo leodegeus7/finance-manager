@@ -18,11 +18,13 @@ import { useNetWorth } from '@/lib/hooks/useNetWorth'
 import { useUser } from '@/lib/UserContext'
 import { computeSplitReport } from '@/engine/SplitEngine'
 import { fetchSplitTransactionsByMonth } from '@/lib/db/transactions'
+import { createAsset } from '@/lib/db/networth'
+import { AssetType } from '@/investments/types'
 import { useState, useEffect } from 'react'
 
 export function NetWorth() {
   const { userId, userName, month } = useUser()
-  const { timeline, assets, enrichedAccounts, loading, error } = useNetWorth(userId, month)
+  const { timeline, assets, enrichedAccounts, loading, error, reload } = useNetWorth(userId, month)
 
   // Split transactions: fetch by both competency_month AND statement_month
   const [splitTxs, setSplitTxs] = useState<import('@/engine/types').Transaction[]>([])
@@ -50,6 +52,38 @@ export function NetWorth() {
     () => computeSplitReport(splitTxs, userId),
     [splitTxs, userId],
   )
+
+  // ── Adicionar ativo ──────────────────────────────────────────
+  const [showAddAsset, setShowAddAsset] = useState(false)
+  const [assetName, setAssetName] = useState('')
+  const [assetType, setAssetType] = useState<AssetType>('financial')
+  const [assetValue, setAssetValue] = useState('')
+  const [linkToAccount, setLinkToAccount] = useState(false)
+  const [assetAccountId, setAssetAccountId] = useState('')
+  const [savingAsset, setSavingAsset] = useState(false)
+  const [assetError, setAssetError] = useState('')
+
+  async function handleAddAsset() {
+    if (!assetName.trim()) return
+    setSavingAsset(true)
+    setAssetError('')
+    try {
+      await createAsset(userId, {
+        name: assetName.trim(),
+        type: assetType,
+        current_value: parseFloat(assetValue.replace(',', '.')) || 0,
+        linked_account_id: linkToAccount ? (assetAccountId || null) : null,
+        is_shared: false,
+      })
+      setAssetName(''); setAssetValue(''); setLinkToAccount(false); setAssetAccountId('')
+      setShowAddAsset(false)
+      reload()
+    } catch (e) {
+      setAssetError(String(e))
+    } finally {
+      setSavingAsset(false)
+    }
+  }
 
   if (error) return (
     <div className="p-8 text-red-600 text-sm">Erro ao carregar patrimônio: {error}</div>
@@ -122,9 +156,96 @@ export function NetWorth() {
 
         {/* Investments & Assets */}
         <section>
-          <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">
-            Investimentos & Ativos
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+              Investimentos & Ativos
+            </h2>
+            <button
+              onClick={() => setShowAddAsset((v) => !v)}
+              className="text-xs text-blue-600 font-medium hover:underline"
+            >
+              {showAddAsset ? 'Cancelar' : '+ Adicionar'}
+            </button>
+          </div>
+
+          {showAddAsset && (
+            <Card padding="md" className="mb-2">
+              <p className="text-xs font-medium text-gray-500 mb-3">Novo ativo</p>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Nome</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Investimento XP"
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-gray-300"
+                    value={assetName}
+                    onChange={(e) => setAssetName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Tipo</label>
+                  <select
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-gray-300"
+                    value={assetType}
+                    onChange={(e) => setAssetType(e.target.value as AssetType)}
+                  >
+                    <option value="financial">Financeiro</option>
+                    <option value="real">Real</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mb-3">
+                <label className="text-xs text-gray-400 block mb-1">Valor atual (R$)</label>
+                <input
+                  type="text"
+                  placeholder="0,00"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-gray-300"
+                  value={assetValue}
+                  onChange={(e) => setAssetValue(e.target.value)}
+                />
+              </div>
+
+              <div className="mb-3">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={linkToAccount}
+                    onChange={(e) => setLinkToAccount(e.target.checked)}
+                  />
+                  Esse valor já faz parte do saldo de uma conta (não somar no patrimônio)
+                </label>
+                {linkToAccount && (
+                  <select
+                    className="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-gray-300"
+                    value={assetAccountId}
+                    onChange={(e) => setAssetAccountId(e.target.value)}
+                  >
+                    <option value="">Selecione uma conta</option>
+                    {enrichedAccounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>{acc.name}</option>
+                    ))}
+                  </select>
+                )}
+                {!linkToAccount && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    Vai contar como patrimônio separado
+                  </p>
+                )}
+              </div>
+
+              {assetError && (
+                <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-2">{assetError}</p>
+              )}
+              <button
+                onClick={handleAddAsset}
+                disabled={savingAsset || !assetName.trim() || (linkToAccount && !assetAccountId)}
+                className="w-full bg-gray-900 text-white text-sm font-medium py-2 rounded-xl disabled:opacity-40 hover:bg-gray-700 transition-colors"
+              >
+                {savingAsset ? 'Salvando...' : 'Salvar ativo'}
+              </button>
+            </Card>
+          )}
+
           <div className="space-y-2">
             {breakdown.assets.map(({ asset, percentage_of_total }) => {
               const linkedAccount = asset.linked_account_id

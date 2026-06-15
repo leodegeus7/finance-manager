@@ -237,89 +237,6 @@ export function Casal() {
         )}
       </Card>
 
-      {/* Categorias */}
-      <Card padding="md">
-        <CardTitle>Gastos por categoria</CardTitle>
-        <p className="text-xs text-gray-400 -mt-0.5 mb-2">Clique em uma categoria para ver as transações</p>
-        <div className="mt-4">
-          {!monthLoading && (
-            <SharedCategoryBarChart data={categoryBreakdown} onCategoryClick={handleCategoryClick} />
-          )}
-        </div>
-      </Card>
-
-      {/* Gastos dia a dia */}
-      <Card padding="md">
-        <CardTitle>Gastos por dia</CardTitle>
-        <p className="text-xs text-gray-400 -mt-0.5 mb-2">Distribuição diária das despesas compartilhadas, por categoria</p>
-        <div className="mt-4">
-          {!monthLoading && (
-            <DailySpendingChart transactions={sharedExpenses} month={month} />
-          )}
-        </div>
-      </Card>
-
-      {/* Histórico de divisão */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
-          Histórico da divisão
-        </h2>
-
-        {historyLoading ? (
-          <p className="text-sm text-gray-400">Carregando...</p>
-        ) : (
-          <div className="space-y-3">
-            {history.map((h) => (
-              <Card key={h.month} padding="md">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-gray-900 capitalize">{formatMonth(h.month)}</p>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedHistorySelection({ month: h.month })}
-                    className="text-base font-bold text-gray-900 tabular-nums hover:underline"
-                  >
-                    {formatCurrency(h.total)}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <p className="text-gray-500">Leonardo pagou</p>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedHistorySelection({ month: h.month, userId: 'leo' })}
-                      className="font-semibold text-gray-900 tabular-nums hover:underline"
-                    >
-                      {formatCurrency(h.leoPaid)}
-                    </button>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Murilo pagou</p>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedHistorySelection({ month: h.month, userId: 'murilo' })}
-                      className="font-semibold text-gray-900 tabular-nums hover:underline"
-                    >
-                      {formatCurrency(h.muriloPaid)}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                  {h.settlement ? (
-                    <p className="text-sm text-amber-800 font-medium">
-                      {USER_NAMES[h.settlement.debtor_user_id]} deve {formatCurrency(h.settlement.amount)} para {USER_NAMES[h.settlement.creditor_user_id]}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-amber-800 font-medium">Tudo certo — divisão equilibrada</p>
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
-
       {/* Patrimônio do casal */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
@@ -444,6 +361,89 @@ export function Casal() {
                 </Card>
               )
             })}
+          </div>
+        )}
+      </section>
+
+      {/* Categorias */}
+      <Card padding="md">
+        <CardTitle>Gastos por categoria</CardTitle>
+        <p className="text-xs text-gray-400 -mt-0.5 mb-2">Clique em uma categoria para ver as transações</p>
+        <div className="mt-4">
+          {!monthLoading && (
+            <SharedCategoryBarChart data={categoryBreakdown} onCategoryClick={handleCategoryClick} />
+          )}
+        </div>
+      </Card>
+
+      {/* Gastos dia a dia */}
+      <Card padding="md">
+        <CardTitle>Gastos por dia</CardTitle>
+        <p className="text-xs text-gray-400 -mt-0.5 mb-2">Distribuição diária das despesas compartilhadas, por categoria</p>
+        <div className="mt-4">
+          {!monthLoading && (
+            <DailySpendingChart transactions={sharedExpenses} month={month} />
+          )}
+        </div>
+      </Card>
+
+      {/* Histórico de divisão */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
+          Histórico da divisão
+        </h2>
+
+        {historyLoading ? (
+          <p className="text-sm text-gray-400">Carregando...</p>
+        ) : (
+          <div className="space-y-3">
+            {history.map((h) => (
+              <Card key={h.month} padding="md">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-gray-900 capitalize">{formatMonth(h.month)}</p>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedHistorySelection({ month: h.month })}
+                    className="text-base font-bold text-gray-900 tabular-nums hover:underline"
+                  >
+                    {formatCurrency(h.total)}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500">Leonardo pagou</p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedHistorySelection({ month: h.month, userId: 'leo' })}
+                      className="font-semibold text-gray-900 tabular-nums hover:underline"
+                    >
+                      {formatCurrency(h.leoPaid)}
+                    </button>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Murilo pagou</p>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedHistorySelection({ month: h.month, userId: 'murilo' })}
+                      className="font-semibold text-gray-900 tabular-nums hover:underline"
+                    >
+                      {formatCurrency(h.muriloPaid)}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                  {h.settlement ? (
+                    <p className="text-sm text-amber-800 font-medium">
+                      {USER_NAMES[h.settlement.debtor_user_id]} deve {formatCurrency(h.settlement.amount)} para {USER_NAMES[h.settlement.creditor_user_id]}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-amber-800 font-medium">Tudo certo — divisão equilibrada</p>
+                  )}
+                </div>
+              </Card>
+            ))}
           </div>
         )}
       </section>

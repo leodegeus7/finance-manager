@@ -60,6 +60,26 @@ export function computeCardInvoiceSeries(transactions: Transaction[], months: st
     return entry
   }
 
+  // A "parcelamento" series spans multiple real transactions — one per
+  // statement month — sharing the same description/total/amount. Only the
+  // most recent known installment of each series should be used to project
+  // the remaining future installments; otherwise every past installment of
+  // the same purchase would independently project the same future months,
+  // duplicating them.
+  const seriesKey = (tx: Transaction, signed: number) =>
+    `${tx.description}__${tx.installment_total}__${signed}`
+
+  const latestBySeries = new Map<string, Transaction>()
+  for (const tx of transactions) {
+    if (!tx.installment_total || tx.installment_total <= 1 || !tx.installment_current) continue
+    const signed = tx.direction === 'expense' ? tx.amount : -tx.amount
+    const key = seriesKey(tx, signed)
+    const current = latestBySeries.get(key)
+    if (!current || (tx.installment_current > (current.installment_current ?? 0))) {
+      latestBySeries.set(key, tx)
+    }
+  }
+
   for (const tx of transactions) {
     const month = tx.statement_month
     if (!month) continue
@@ -79,10 +99,12 @@ export function computeCardInvoiceSeries(transactions: Transaction[], months: st
     }
 
     // Project remaining installments into future months that don't have
-    // real transaction data yet.
+    // real transaction data yet — only from the most recent installment of
+    // each series, to avoid duplicating the same future installment.
     if (
       tx.installment_current && tx.installment_total &&
-      tx.installment_current < tx.installment_total
+      tx.installment_current < tx.installment_total &&
+      latestBySeries.get(seriesKey(tx, signed)) === tx
     ) {
       for (let k = tx.installment_current + 1; k <= tx.installment_total; k++) {
         const futureMonth = addMonths(month, k - tx.installment_current)

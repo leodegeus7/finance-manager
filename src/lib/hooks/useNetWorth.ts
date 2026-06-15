@@ -52,7 +52,7 @@ export function useNetWorth(userId: string, selectedMonth: string) {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true)
     setError(null)
     Promise.all([
@@ -67,7 +67,9 @@ export function useNetWorth(userId: string, selectedMonth: string) {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
-  }, [userId])
+  }
+
+  useEffect(load, [userId])
 
   // Total of active assets/investments (no per-month history, so it's a
   // current snapshot applied across the timeline).
@@ -90,5 +92,5 @@ export function useNetWorth(userId: string, selectedMonth: string) {
     return enrichAccounts(accounts, entries, selectedMonth)
   }, [history, accounts, selectedMonth])
 
-  return { timeline, assets, assetsTotal, accounts, enrichedAccounts, loading, error }
+  return { timeline, assets, assetsTotal, accounts, enrichedAccounts, loading, error, reload: load }
 }
