@@ -84,8 +84,8 @@ export function BalanceEntryModal({ userId, month, onClose, onSaved }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4 border-b border-gray-100">

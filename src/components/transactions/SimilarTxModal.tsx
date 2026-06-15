@@ -59,8 +59,8 @@ export function SimilarTxModal({ similar, classification, categories, onApply, o
   )
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4 max-h-[85vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onDismiss}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div>

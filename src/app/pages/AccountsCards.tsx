@@ -11,6 +11,7 @@ import {
 } from '@/lib/db/accounts'
 import { fetchLatestAccountBalances, AccountLatestEntry, enrichAccounts } from '@/lib/db/networth'
 import { CardTransactionsModal } from '@/components/cards/CardTransactionsModal'
+import { CardInstallmentsModal } from '@/components/cards/CardInstallmentsModal'
 import { CardInvoiceChart } from '@/components/charts/CardInvoiceChart'
 import { useCardInvoiceHistory } from '@/lib/hooks/useCardInvoiceHistory'
 
@@ -24,8 +25,11 @@ function CardInvoiceSection({ cardId, currentMonth }: { cardId: string; currentM
   const endMonth = currentMonth < INVOICE_START_MONTH ? INVOICE_START_MONTH : currentMonth
   const { series, loading } = useCardInvoiceHistory(cardId, INVOICE_START_MONTH, endMonth)
   const [open, setOpen] = useState(false)
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
 
   if (loading || series.length === 0) return null
+
+  const selected = selectedMonth ? series.find((m) => m.month === selectedMonth) : undefined
 
   // Se as faturas reais (não projetadas) dos últimos 3 meses estão todas
   // zeradas, esconde o gráfico por padrão (mas permite abrir sob demanda).
@@ -60,7 +64,17 @@ function CardInvoiceSection({ cardId, currentMonth }: { cardId: string; currentM
           Histórico de fatura
         </p>
       )}
-      <CardInvoiceChart data={series} />
+      <CardInvoiceChart data={series} onMonthClick={setSelectedMonth} />
+
+      {selected && (
+        <CardInstallmentsModal
+          month={selected.month}
+          items={selected.installmentItems}
+          total={selected.installments}
+          projected={selected.projected}
+          onClose={() => setSelectedMonth(null)}
+        />
+      )}
     </div>
   )
 }
