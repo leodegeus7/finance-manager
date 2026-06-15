@@ -324,81 +324,11 @@ export function NetWorth() {
       </div>
 
       {/* Splits section */}
-      {!txLoading && (splitReport.couple || splitReport.others.length > 0) && (
+      {!txLoading && splitReport.others.length > 0 && (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
             Divisões em {formatMonth(month)}
           </h2>
-
-          {/* Casal */}
-          {splitReport.couple && (
-            <Card padding="md">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">Visão do Casal</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {splitReport.couple.count} transaç{splitReport.couple.count !== 1 ? 'ões' : 'ão'} compartilhadas
-                  </p>
-                </div>
-                <p className="text-xl font-bold text-gray-900 tabular-nums">
-                  {formatCurrency(splitReport.couple.total)}
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                {/* Leo */}
-                {(() => {
-                  const leoPct = splitReport.couple!.total > 0
-                    ? (splitReport.couple!.leoShare / splitReport.couple!.total) * 100
-                    : 0
-                  return (
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-gray-900">Leonardo</span>
-                        <span className="text-xs text-gray-400">{leoPct.toFixed(0)}%</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1">
-                        <div className="h-full rounded-full bg-blue-400" style={{ width: `${leoPct}%` }} />
-                      </div>
-                      <p className="text-xs text-gray-500 text-right">
-                        {formatCurrency(splitReport.couple!.leoShare)}
-                      </p>
-                    </div>
-                  )
-                })()}
-
-                {/* Murilo */}
-                {(() => {
-                  const muriloPct = splitReport.couple!.total > 0
-                    ? (splitReport.couple!.muriloShare / splitReport.couple!.total) * 100
-                    : 0
-                  return (
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-medium text-gray-900">Murilo</span>
-                        <span className="text-xs text-gray-400">{muriloPct.toFixed(0)}%</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-1">
-                        <div className="h-full rounded-full bg-purple-400" style={{ width: `${muriloPct}%` }} />
-                      </div>
-                      <p className="text-xs text-gray-500 text-right">
-                        {formatCurrency(splitReport.couple!.muriloShare)}
-                      </p>
-                    </div>
-                  )
-                })()}
-              </div>
-
-              {/* Settlement */}
-              {splitReport.couple.muriloShare > 0 && (
-                <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                  <p className="text-sm text-amber-800 font-medium">
-                    Murilo deve {formatCurrency(splitReport.couple.muriloShare)} para Leonardo
-                  </p>
-                </div>
-              )}
-            </Card>
-          )}
 
           {/* Outros splits */}
           {splitReport.others.length > 0 && (

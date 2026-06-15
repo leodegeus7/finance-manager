@@ -34,6 +34,7 @@ export function Dashboard() {
   const { timeline, loading: nwLoading }     = useNetWorth(userId, month)
   const { transactions: flowTxs, loading: flowLoading } = useTransactionsSince(FLOW_START_MONTH, userId)
   const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null)
+  const [selectedFlow, setSelectedFlow] = useState<'income' | 'expense' | null>(null)
 
   const monthTxs   = useMemo(() => applyFilters(transactions, { month }), [transactions, month])
   const cashFlow   = useMemo(() => computeCashFlow(monthTxs), [monthTxs])
@@ -50,6 +51,11 @@ export function Dashboard() {
     if (!cat) return
     setSelectedCategory({ id: cat.category_id, name: cat.category_name })
   }
+
+  const selectedFlowTxs = useMemo(() => {
+    if (!selectedFlow) return []
+    return monthTxs.filter((tx) => tx.direction === selectedFlow)
+  }, [monthTxs, selectedFlow])
 
   const flowMonths = useMemo(() => monthRange(FLOW_START_MONTH, month), [month])
   const monthlyFlow = useMemo(() => {
@@ -106,7 +112,7 @@ export function Dashboard() {
         </Card>
 
         {/* Receita */}
-        <Card padding="md">
+        <Card padding="md" onClick={() => setSelectedFlow('income')} className="cursor-pointer hover:shadow-md transition-shadow">
           <CardTitle>Receita</CardTitle>
           {loading ? (
             <p className="text-sm text-gray-400 mt-1">...</p>
@@ -119,7 +125,7 @@ export function Dashboard() {
         </Card>
 
         {/* Despesa */}
-        <Card padding="md">
+        <Card padding="md" onClick={() => setSelectedFlow('expense')} className="cursor-pointer hover:shadow-md transition-shadow">
           <CardTitle>Despesas</CardTitle>
           {loading ? (
             <p className="text-sm text-gray-400 mt-1">...</p>
@@ -191,6 +197,19 @@ export function Dashboard() {
           transactions={selectedTxs}
           subtitle={userName}
           onClose={() => setSelectedCategory(null)}
+          onUpdate={handleUpdate}
+          onDelete={() => refetch()}
+        />
+      )}
+
+      {selectedFlow && (
+        <CategoryTransactionsModal
+          categoryName={selectedFlow === 'income' ? 'Receitas' : 'Despesas'}
+          month={month}
+          transactions={selectedFlowTxs}
+          subtitle={userName}
+          sortBy="amount"
+          onClose={() => setSelectedFlow(null)}
           onUpdate={handleUpdate}
           onDelete={() => refetch()}
         />

@@ -14,6 +14,8 @@ interface Props {
   userNames?: Record<string, string>
   /** Text shown after the month in the subtitle (e.g. "compartilhado"). Defaults to "compartilhado". */
   subtitle?: string
+  /** Sort order for the transaction list. Defaults to 'date'. */
+  sortBy?: 'date' | 'amount'
   onClose: () => void
   /** Notify the parent so it can keep its own copy of the data in sync */
   onUpdate?: (id: string, patch: Partial<Transaction> & { notes?: string | null }) => void
@@ -21,7 +23,7 @@ interface Props {
 }
 
 export function CategoryTransactionsModal({
-  categoryName, month, transactions: initial, userNames, subtitle = 'compartilhado', onClose, onUpdate, onDelete,
+  categoryName, month, transactions: initial, userNames, subtitle = 'compartilhado', sortBy, onClose, onUpdate, onDelete,
 }: Props) {
   const [transactions, setTransactions] = useState(initial)
   const { categories } = useCategories()
@@ -92,6 +94,7 @@ export function CategoryTransactionsModal({
               transactions={transactions}
               categories={categories}
               userNames={userNames}
+              sortBy={sortBy}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
             />

@@ -16,6 +16,8 @@ interface Props {
   accounts?: Account[]
   /** Optional map of user_id → display name. When provided, shows who paid. */
   userNames?: Record<string, string>
+  /** Sort order. Defaults to 'date' (uncategorized first, then most recent). 'amount' sorts by highest amount first. */
+  sortBy?: 'date' | 'amount'
   onUpdate: (id: string, patch: Partial<Transaction> & { notes?: string | null }) => void
   onDelete?: (id: string) => void
 }
@@ -26,13 +28,15 @@ interface PendingModal {
   patch: Partial<Transaction>
 }
 
-export function TransactionList({ transactions, categories, accounts, userNames, onUpdate, onDelete }: Props) {
+export function TransactionList({ transactions, categories, accounts, userNames, sortBy = 'date', onUpdate, onDelete }: Props) {
   const [pending, setPending] = useState<PendingModal | null>(null)
 
-  // UI Rule 4.5: uncategorized transactions shown first
+  // UI Rule 4.5: uncategorized transactions shown first (unless sorting by amount)
   const sorted = useMemo(
-    () => sortWithUncategorizedFirst(transactions),
-    [transactions],
+    () => sortBy === 'amount'
+      ? [...transactions].sort((a, b) => b.amount - a.amount)
+      : sortWithUncategorizedFirst(transactions),
+    [transactions, sortBy],
   )
 
   const handleUpdate = useCallback((id: string, patch: Partial<Transaction> & { notes?: string | null }) => {
