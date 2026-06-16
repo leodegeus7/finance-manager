@@ -52,7 +52,12 @@ export function computeCardInvoiceSeries(transactions: Transaction[], months: st
   const byMonth = new Map<string, MonthAcc>()
   for (const m of months) byMonth.set(m, { total: 0, installments: 0, items: [] })
 
-  const lastRealMonth = months.length > 0 ? months[months.length - 1] : ''
+  // lastRealMonth is the latest statement_month with actual imported transactions,
+  // which may be ahead of currentMonth if the user has already imported future invoices.
+  const lastRealMonth = transactions.reduce((max, tx) => {
+    const m = tx.statement_month
+    return m && m > max ? m : max
+  }, months.length > 0 ? months[months.length - 1] : '')
 
   const getEntry = (month: string): MonthAcc => {
     let entry = byMonth.get(month)
