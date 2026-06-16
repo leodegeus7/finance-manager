@@ -81,22 +81,21 @@ const HISTORICAL: { month: string; salario: number; freelancer: number; fazenda:
   { month: '2024-10-01', salario: 16911.10, freelancer: 1300.00, fazenda: 706.00 },
   { month: '2024-11-01', salario: 19786.08, freelancer: 1300.00, fazenda: 706.00 },
   { month: '2024-12-01', salario: 18648.47, freelancer: 0,       fazenda: 706.00 },
-  { month: '2025-01-01', salario: 12280.09, freelancer: 1300.00, fazenda: 706.00 },
-  // Partial gap Feb–Aug/2025 (salário desconhecido); fazenda manteve 706 até mai/25 (~10 dias), depois 2000
-  { month: '2025-02-01', salario: 0,        freelancer: 0, fazenda: 706.00 },
-  { month: '2025-03-01', salario: 0,        freelancer: 0, fazenda: 706.00 },
-  { month: '2025-04-01', salario: 0,        freelancer: 0, fazenda: 706.00 },
-  { month: '2025-05-01', salario: 0,        freelancer: 0, fazenda: 706.00 }, // mudança no dia 10
-  { month: '2025-06-01', salario: 0,        freelancer: 0, fazenda: 2000.00 },
-  { month: '2025-07-01', salario: 0,        freelancer: 0, fazenda: 2000.00 },
-  { month: '2025-08-01', salario: 0,        freelancer: 0, fazenda: 2000.00 },
-  { month: '2025-09-01', salario: 16168.81, freelancer: 0, fazenda: 2000.00 },
-  { month: '2025-10-01', salario: 21968.81, freelancer: 0, fazenda: 2000.00 },
-  { month: '2025-11-01', salario: 21968.81, freelancer: 0, fazenda: 2000.00 },
-  { month: '2025-12-01', salario: 21968.81, freelancer: 0, fazenda: 2000.00 },
-  { month: '2026-01-01', salario: 21968.81, freelancer: 0, fazenda: 2000.00 },
-  { month: '2026-02-01', salario: 21968.81, freelancer: 0, fazenda: 2000.00 },
-  { month: '2026-03-01', salario: 21968.81, freelancer: 0, fazenda: 2000.00 },
+  { month: '2025-01-01', salario: 17049.51, freelancer: 1300.00, fazenda: 706.00 },
+  { month: '2025-02-01', salario: 16880.67, freelancer: 0,       fazenda: 706.00 },
+  { month: '2025-03-01', salario: 16880.67, freelancer: 0,       fazenda: 706.00 },
+  { month: '2025-04-01', salario: 10765.93, freelancer: 7000.00, fazenda: 706.00 },
+  { month: '2025-05-01', salario: 16880.67, freelancer: 0,       fazenda: 706.00 }, // fazenda mudou no dia 10
+  { month: '2025-06-01', salario: 62139.31, freelancer: 1000.00, fazenda: 2000.00 }, // 16193.66 + 45945.65
+  { month: '2025-07-01', salario: 16893.48, freelancer: 1000.00, fazenda: 2000.00 },
+  { month: '2025-08-01', salario: 16088.81, freelancer: 0,       fazenda: 2000.00 },
+  { month: '2025-09-01', salario: 54240.59, freelancer: 1000.00, fazenda: 2000.00 }, // 38071.78 + 16168.81
+  { month: '2025-10-01', salario: 21968.81, freelancer: 7000.00, fazenda: 2000.00 },
+  { month: '2025-11-01', salario: 21968.81, freelancer: 0,       fazenda: 2000.00 },
+  { month: '2025-12-01', salario: 21968.81, freelancer: 0,       fazenda: 2000.00 },
+  { month: '2026-01-01', salario: 21968.81, freelancer: 0,       fazenda: 2000.00 },
+  { month: '2026-02-01', salario: 21968.81, freelancer: 0,       fazenda: 2000.00 },
+  { month: '2026-03-01', salario: 21968.81, freelancer: 0,       fazenda: 2000.00 },
 ]
 
 const LIVE_START = '2026-04-01'
