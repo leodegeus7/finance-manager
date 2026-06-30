@@ -1,0 +1,274 @@
+# Finance Manager — Guia do Projeto
+
+Aplicação de gestão financeira pessoal (e de casal) para **Leonardo (`leo`)** e
+**Murilo (`murilo`)**. Importa extratos/faturas de banco e cartão, classifica
+transações, calcula fluxo de caixa, patrimônio e a divisão de despesas do casal.
+
+> Este arquivo é a referência viva do projeto. Mantenha-o atualizado quando
+> mudar o modelo de dados ou a lógica das telas.
+
+---
+
+## 1. Stack & comandos
+
+- **Frontend:** React 18 + TypeScript + Vite 8, React Router 6, Tailwind 3, Recharts 2.
+- **Backend:** Supabase (Postgres). Cliente em [`src/lib/supabase.ts`](src/lib/supabase.ts).
+- **PDF parsing:** `pdfjs-dist` (faturas Inter em PDF).
+- **Sem testes automatizados** no momento. **Sem backend próprio** — toda a lógica
+  roda no cliente; o Supabase é só persistência (RLS hoje é `allow all`).
+
+```bash
+npm run dev       # vite dev server
+npm run build     # tsc && vite build
+npm run preview   # serve o build
+```
+
+Alias de import: `@/` → `src/` (ver `vite.config.ts` / `tsconfig.json`).
+
+### Variáveis de ambiente (`.env`)
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+Credenciais detalhadas estão na memória do Claude (`project_supabase.md`).
+
+---
+
+## 2. Arquitetura em camadas
+
+O princípio central (ver cabeçalhos dos engines): **nunca misturar as três camadas**.
+
+1. **Fluxo de caixa** (`src/engine/`) — receita/despesa do mês. NÃO sabe de patrimônio.
+2. **Performance / investimentos** (`src/investments/AssetEngine.ts`) — ganho/perda de ativos.
+3. **Patrimônio** (`src/investments/NetWorthEngine.ts`) — foto da riqueza total.
+
+Camadas transversais:
+- **Import** (`src/import/`) — extrato/PDF → `NormalizedTransaction`.
+- **Casal / splits** (`src/couple/`, `src/engine/SplitEngine.ts`) — divisão de despesas.
+- **Insights** (`src/insights/`) — regras que geram alertas (motor pronto, **mas a
+  Dashboard ainda usa `MOCK_INSIGHTS`** — ver §6).
+
+Regra de ouro dos engines: **funções puras, nunca mutam as transações originais.**
+Toda a UI lê o estado e os engines só calculam.
+
+### Estrutura de pastas
+```
+src/
+  app/
+    App.tsx              # rotas, sidebar, seletor de mês/usuário, WelcomeScreen
+    pages/               # uma página por rota (ver §5)
+  engine/                # fluxo de caixa, categorias, splits, fatura cartão
+  investments/           # ativos + patrimônio
+  couple/                # análise de casal
+  insights/              # motor de insights + regras
+  import/                # pipeline + handlers por banco
+  components/            # UI (charts/, transactions/, cards/, ui/, ...)
+  lib/
+    db/                  # acesso ao Supabase (uma função por operação)
+    hooks/               # hooks React que ligam db + engines à UI
+    UserContext.tsx      # usuário atual + mês selecionado (global)
+    format.ts            # formatação de moeda/mês, monthRange, addMonths
+supabase/schema.sql      # schema (ver §3 — atenção à lacuna)
+```
+
+---
+
+## 3. Modelo de dados (Supabase)
+
+Schema em [`supabase/schema.sql`](supabase/schema.sql). É seguro re-rodar (dropa e
+recria tudo, com seeds). RLS habilitado mas com policy `allow all` (auth ainda não
+implementada).
+
+### Tabelas
+
+| Tabela | Papel |
+|---|---|
+| `users` | `leo`, `murilo`. Campo `investment_target_pct` (meta de investimento, default 20%). |
+| `sharing_rules` | % de divisão por usuário com `effective_from` (ex.: Leo 60 / Murilo 40). |
+| `categories` | Globais (mesmas p/ conta e cartão). Hierárquicas via `parent_id`. `is_essential` marca custo de vida. IDs `cat-*` = despesa, `inc-*` = receita. |
+| `accounts` | Contas bancárias. `balance` é o saldo estático/inicial. |
+| `credit_cards` | Cartões. `invoice_total` / `invoice_paid` → status derivado (paid/partial/open). |
+| `transactions` | Núcleo do sistema (ver campos abaixo). |
+| `assets` | Ativos: `financial` ou `real`. `linked_account_id` evita dupla contagem; `is_shared` mostra em ambos os patrimônios. |
+| `asset_movements` | Movimentos de ativo: `contribution` / `withdrawal` / `adjustment`. |
+| `net_worth_snapshots` | Fotos mensais de patrimônio (legado/seed — hoje o timeline é reconstruído, ver §4). |
+
+### Campos-chave de `transactions`
+- **Datas:**
+  - `date` — data real da transação (sempre exibida por linha).
+  - `competency_month` (`YYYY-MM-01`) — mês de competência (conta/manual).
+  - `statement_month` (`YYYY-MM-01`, só cartão) — mês da fatura.
+  - **Mês efetivo** = `statement_month ?? competency_month` (ver [`effectiveMonth.ts`](src/engine/effectiveMonth.ts)).
+    Isso faz a compra de cartão "cair" no mês da fatura, não no dia da compra.
+- **Valores:** `amount` (absoluto ≥ 0) + `signed_amount` (+receita / −despesa) + `direction`.
+- **`type`** (define se conta no fluxo de caixa — ver §4):
+  `income`, `expense`, `transfer`, `credit_card_payment`, `credit_card_purchase`,
+  `investment_contribution`, `investment_withdrawal`, `investment_adjustment`, `bill_payment`.
+- **Classificação:** `category_id`, `context` (`personal`/`professional`),
+  `scope` (`individual`/`shared`), `splits` (JSONB), `is_essential`, `fixed_type`.
+- **Parcelas:** `installment_current` / `installment_total`.
+- **Idempotência:** `unique(external_id, source)` — re-importar não duplica.
+
+### `splits` (JSONB)
+Array de `{ name, user_id?, pct }`. `user_id` `leo`/`murilo` = membro do casal;
+ausente = terceiro (amigo, etc.). A soma dos `pct` deve dar 100.
+
+### ⚠️ Lacuna conhecida no schema
+A tabela **`account_balance_history`** (`account_id`, `month`, `balance`) é usada
+intensamente pelo código ([`src/lib/db/networth.ts`](src/lib/db/networth.ts)) mas
+**não está em `schema.sql`**. É a fonte de verdade do saldo mês a mês das contas
+(o usuário lança o saldo manualmente no Checklist). Se for recriar o banco do
+zero, **precisa criar essa tabela à mão.** Vale adicioná-la ao schema.
+
+---
+
+## 4. Engines — o que cada função faz
+
+### `engine/CashFlowEngine.ts` — fluxo de caixa
+Regra crítica: só alguns `type` contam, para **evitar dupla contagem**.
+- Conta como **receita:** `income`. Conta como **despesa:** `expense`, `bill_payment`, `credit_card_purchase`.
+- **Ignorado:** `transfer`, `credit_card_payment` (já contado via a compra), `investment_*`.
+
+| Função | O que faz |
+|---|---|
+| `isCountableExpense` / `isCountableIncome` / `isExcludedFromCashFlow` | Guardas de tipo contra dupla contagem. |
+| `applyFilters(txs, filter)` | Filtra por mês efetivo, contexto, escopo, categoria; exclui transfer/CC payment/investimentos por padrão. |
+| `computeCashFlow(txs)` | Soma `income`, `expenses`, `balance` (+ informativos `investment_in/out`). |
+| `computeCategoryBreakdown(txs)` | Despesa por categoria, ordenada desc, com % do total. Alimenta o gráfico de barras. |
+| `computeCostOfLiving(txs)` | Soma só despesas essenciais (custo de vida). |
+| `computeNonEssentialRatio(txs)` | % não-essencial / receita (usado por insight). |
+| `computeInvestedAmount(txs)` | Soma `investment_contribution`. |
+| `isXpInvestmentTransfer(tx)` | Detecta transferência p/ "Banco XP" (regex) → trata como investimento. |
+| `computeMonthlyFinancialSeries(txs, months)` | Receita/despesa/investimento por mês. Investimento = contribuições/saques + transferências XP. Alimenta o gráfico mensal da Dashboard. |
+
+### `engine/TransactionEngine.ts` — orquestrador
+`listCompetencyMonths`, `buildMonthlyBreakdown`, views (`personalView`/`professionalView`/`sharedOnly`),
+`computeCoupleBalance` (versão por `sharing_rules`), `validateTransaction` (valida antes de gravar),
+`groupByMonth`, `computeRollingAverage` (média móvel 3 meses p/ insights). Re-exporta os helpers do CashFlowEngine.
+
+### `engine/CategoryEngine.ts` — sugestão de categoria
+`suggestCategory` (1. match exato no histórico → 2. regra por padrão → 3. match parcial visto ≥2×),
+`batchSuggestCategories`, `countUncategorized`, `sortWithUncategorizedFirst` (sem categoria primeiro).
+**Nunca cria categoria, só sugere.**
+
+### `engine/SplitEngine.ts` — quem deve ao pagador
+`computeSplitReport(txs, payerUserId)` → separa parcela do casal (Leo+Murilo) de terceiros;
+calcula quanto cada um deve ao pagador. Usado na tela Patrimônio (`OwedSummary`).
+
+### `engine/CardInvoiceEngine.ts` — série de faturas
+`computeCardInvoiceSeries(txs, months)` → total da fatura por mês, separando parcelado de normal,
+**e projetando parcelas futuras** ainda não importadas. Cuidado embutido: só projeta a partir da
+parcela mais recente de cada série e só em meses **além** do último mês com dado real, para não
+duplicar com faturas futuras já importadas (`projected: true` marca meses estimados).
+
+### `couple/CoupleEngine.ts` — análise do casal
+Só despesas `personal`, `shared`, contáveis E realmente divididas entre Leo e Murilo
+(`isCoupleSplit` — split com terceiro não conta como casal).
+- `validateSharingRules` — % por mês deve somar 100, sem usuário duplicado.
+- `getSharedExpenses` / `getFixedExpenses` (fixas contam mesmo sem split).
+- `computeCoupleReport` / `computeSettlement` — total dividido, pago vs esperado, quem deve a quem.
+- `computeSharedCategoryBreakdown` — quem gastou mais em cada categoria.
+- `computeCoupleMonthSummary` — resumo do mês usando os `pct` reais de cada split. `COUPLE_START_MONTH = '2026-04-01'`.
+
+### `investments/AssetEngine.ts` — ativos
+`validateMovement` (adjustment NÃO tem transação; contribution/withdrawal TÊM),
+`computeAssetValue` (recalcula do histórico de movimentos), `computeAssetSummary`/`computePortfolio`
+(net_invested, retorno absoluto e %), `cashFlowImpact` (adjustment = 0), `buildAssetTimeline`.
+Regra 7.3: **investimento ≠ despesa** — contribuição reduz saldo mas não aparece como despesa no fluxo.
+
+### `investments/NetWorthEngine.ts` — patrimônio
+`net_worth = soma(contas) + soma(ativos)`. Ativos com `linked_account_id` são excluídos
+(já estão no saldo da conta) para evitar dupla contagem.
+- `computeNetWorth`, `buildNetWorthTimeline` (variação mês a mês + %), `latestNetWorth`,
+  `netWorthForMonth(timeline, month)` (usa o mês selecionado, com fallback p/ o mais recente),
+  `buildNetWorthBreakdown` (com % por ativo).
+
+### `insights/InsightEngine.ts` — alertas
+`generateInsights(ctx)` roda 8 regras (overspending, top_increases, spending_trend,
+non_essential_ratio, investment_target, investment_capacity, couple_balance, micro_expenses),
+deduplica, ordena por severidade (critical > warning > info) e retorna **no máx. 5**.
+Regras que falham são ignoradas silenciosamente (nunca quebram a UI). Regras em `insights/rules/`.
+
+---
+
+## 5. Páginas (rotas)
+
+Rotas em [`App.tsx`](src/app/App.tsx). Usuário e **mês selecionado** vêm do `UserContext`
+(sidebar tem o seletor de competência). `WelcomeScreen` escolhe leo/murilo antes de entrar.
+
+### Dashboard — [`pages/Dashboard.tsx`](src/app/pages/Dashboard.tsx) (`/`)
+"Estou melhor ou pior?" em 5 segundos. Blocos:
+1. **Resumo:** Patrimônio total (de `netWorthForMonth`) + variação; cards de Receita e
+   Despesa (de `computeCashFlow`). Receita/Despesa são clicáveis → modal com as transações.
+2. **Evolução do patrimônio:** `NetWorthChart` sobre o `timeline` do `useNetWorth`.
+3. **Investimentos, despesas e receita por mês:** `MonthlyFlowChart` de
+   `computeMonthlyFinancialSeries`, desde `FLOW_START_MONTH = '2026-04-01'`. Esconde meses
+   finais ainda zerados. Transferência p/ Banco XP conta como investimento.
+4. **Gastos por categoria:** `CategoryBars` de `computeCategoryBreakdown` (clica → drill-down).
+5. **Insights:** ⚠️ **ainda usa `MOCK_INSIGHTS`** de `src/lib/mock.ts`, não o `InsightEngine`.
+   Trocar para `generateInsights` é uma melhoria pendente.
+
+### Transações — [`pages/Transactions.tsx`](src/app/pages/Transactions.tsx) (`/transacoes`)
+Upload → classificação → revisão. Sem categoria primeiro, edição inline, filtros por
+contexto/escopo, agrupamento de fatura de cartão, import por drag-and-drop, add manual.
+
+### Contas & Cartões — [`pages/AccountsCards.tsx`](src/app/pages/AccountsCards.tsx) (`/contas`)
+Saldos de contas (via `enrichAccounts` — último saldo lançado até o mês) e cartões com
+status de fatura. Gráfico de histórico de fatura por cartão (`CardInvoiceChart`),
+desde `INVOICE_START_MONTH = '2026-04-01'`. CRUD de contas e cartões.
+
+### Patrimônio — [`pages/NetWorth.tsx`](src/app/pages/NetWorth.tsx) (`/patrimonio`)
+Riqueza real: contas + investimentos + ativos, cada um com valor e variação.
+`NetWorthChart` + `IncomeEvolutionChart` (renda desde 2026-04). Seção de casal via
+`computeSplitReport` (`OwedSummary`). CRUD de ativos.
+
+### Casal — [`pages/Casal.tsx`](src/app/pages/Casal.tsx) (`/casal`)
+Análise mensal de despesas compartilhadas: total + barras por categoria (drill-down),
+gastos fixos do mês, gráfico dia a dia, e histórico mês a mês de quanto cada um pagou +
+acerto (quem deve quanto). Só `context === 'personal'` entra (profissional é excluído).
+
+### Checklist — [`pages/MonthlyChecklist.tsx`](src/app/pages/MonthlyChecklist.tsx) (`/checklist`)
+Status mensal de tarefas (ex.: lançar saldo das contas via `BalanceEntryModal` →
+`account_balance_history`). Últimos 6 meses.
+
+---
+
+## 6. Import — handlers por banco
+
+Pipeline em [`src/import/ImportPipeline.ts`](src/import/ImportPipeline.ts): resolve handler
+(por nome de arquivo + headers) → parse → normalize → dedup por `external_id`. **Pipeline puro,
+não grava no banco** (o caller faz upsert via Supabase, idempotente por `external_id`).
+
+Handlers em `src/import/handlers/` (cada um implementa `identify`/`parse`/`normalize`):
+- `NubankAccountHandler` — extrato de conta Nubank (CSV)
+- `NubankCreditHandler` — fatura de cartão Nubank (CSV)
+- `C6CreditHandler` — fatura C6 (CSV, com parcelas)
+- `InterCreditPDFHandler` — fatura Inter (PDF, via pdfjs)
+- `MuriloTransacoesHandler` — planilha de transações do Murilo
+
+---
+
+## 7. Convenções & pegadinhas
+
+- **Mês sempre `YYYY-MM-01`** (primeiro dia). Helpers em `src/lib/format.ts` (`monthRange`, `addMonths`, `formatMonth`).
+- **Use o "mês efetivo"** (`effectiveMonth`) para agregações mensais, não `competency_month` cru —
+  senão compras de cartão caem no mês errado.
+- **Várias datas de corte fixas em `'2026-04-01'`** espalhadas pelo código (`FLOW_START_MONTH`,
+  `COUPLE_START_MONTH`, `INVOICE_START_MONTH`, income chart). É quando o casal começou a usar o sistema.
+- **`amount` é sempre ≥ 0**; o sinal vai em `signed_amount`/`direction`.
+- **Engines não mutam transações** — se precisar transformar, copie.
+- **Saldo da conta** vem de `enrichAccounts` (último lançamento manual até o mês), NÃO do campo
+  estático `accounts.balance` (esse é só fallback inicial). Patrimônio na Dashboard, Patrimônio e
+  Contas usam a mesma regra de propósito, para baterem.
+- **Bug histórico resolvido** (commit `dd7b817`): dupla contagem de fatura quando meses futuros já
+  tinham dado real importado — ver lógica de `projected`/`lastRealMonth` no `CardInvoiceEngine`.
+
+---
+
+## 8. Melhorias pendentes / dívidas
+
+- Dashboard usar `generateInsights` real em vez de `MOCK_INSIGHTS`.
+- Adicionar `account_balance_history` ao `schema.sql` (hoje só existe no banco vivo).
+- Auth real + RLS por usuário (hoje é `allow all`).
+- Sem testes automatizados.
+</content>
+</invoke>
