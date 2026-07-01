@@ -8,7 +8,8 @@
 // - Instant feedback, no reload (UI Rule 4.6)
 // ============================================================
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Card } from '@/components/ui/Card'
 import { TransactionList } from '@/components/transactions/TransactionList'
 import { CardInvoiceGroup } from '@/components/transactions/CardInvoiceGroup'
@@ -41,11 +42,29 @@ export function Transactions() {
     await deleteTransaction(id)
     refetch()
   }, [refetch])
+  // Filtros iniciais podem vir da navegação (widget "sem categoria" da Dashboard):
+  //   ?uncat=1&cardId=<id>  ou  ?uncat=1&accountId=<id>
+  const [searchParams, setSearchParams] = useSearchParams()
   const [contextFilter, setContextFilter] = useState<'all' | 'personal' | 'professional'>('all')
   const [scopeFilter, setScopeFilter]     = useState<'all' | 'individual' | 'shared'>('all')
   const [sourceFilter, setSourceFilter]   = useState<'all' | 'card' | 'account'>('all')
-  const [uncatOnly, setUncatOnly]         = useState(false)
+  const [uncatOnly, setUncatOnly]         = useState(() => searchParams.get('uncat') === '1')
+  const [focusCardId, setFocusCardId]     = useState<string | null>(() => searchParams.get('cardId'))
+  const [focusAccountId, setFocusAccountId] = useState<string | null>(() => searchParams.get('accountId'))
   const [search, setSearch]               = useState('')
+
+  // Consome os parâmetros de navegação uma vez e limpa a URL, para o filtro
+  // não "grudar" depois que o usuário o remove.
+  useEffect(() => {
+    if (searchParams.toString()) setSearchParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const focusName = focusCardId
+    ? cards.find((c) => c.id === focusCardId)?.name ?? 'Cartão'
+    : focusAccountId
+    ? accounts.find((a) => a.id === focusAccountId)?.name ?? 'Conta'
+    : null
 
   const filtered = useMemo(() => {
     let txs = applyFilters(transactions, {
@@ -57,13 +76,15 @@ export function Transactions() {
     })
     if (sourceFilter === 'card')    txs = txs.filter((t) => !!t.credit_card_id)
     if (sourceFilter === 'account') txs = txs.filter((t) => !!t.account_id && !t.credit_card_id)
+    if (focusCardId)         txs = txs.filter((t) => t.credit_card_id === focusCardId)
+    else if (focusAccountId) txs = txs.filter((t) => t.account_id === focusAccountId && !t.credit_card_id)
     if (uncatOnly) txs = txs.filter((t) => !t.category_id && t.type !== 'transfer' && t.type !== 'credit_card_payment')
     if (search.trim()) {
       const q = search.toLowerCase()
       txs = txs.filter((t) => t.description.toLowerCase().includes(q))
     }
     return txs
-  }, [transactions, contextFilter, scopeFilter, sourceFilter, uncatOnly, search])
+  }, [transactions, contextFilter, scopeFilter, sourceFilter, focusCardId, focusAccountId, uncatOnly, search])
 
   // Cash flow only counts income/expense — excludes transfers & CC payments
   const cashFlowTxs = useMemo(() => applyFilters(filtered, {}), [filtered])
@@ -262,6 +283,22 @@ export function Transactions() {
           </button>
         </div>
       </Card>
+
+      {/* Filtro ativo vindo do widget da Dashboard (conta/cartão específico) */}
+      {focusName && (
+        <div className="flex items-center gap-2 -mt-2">
+          <span className="inline-flex items-center gap-2 text-xs bg-gray-900 text-white pl-3 pr-2 py-1.5 rounded-lg">
+            {focusCardId ? 'Cartão' : 'Conta'}: <span className="font-medium">{focusName}</span>
+            <button
+              onClick={() => { setFocusCardId(null); setFocusAccountId(null) }}
+              className="text-gray-400 hover:text-white transition-colors"
+              title="Remover filtro"
+            >
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Transaction list */}
       <Card padding="sm">

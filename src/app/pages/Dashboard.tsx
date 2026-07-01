@@ -16,12 +16,14 @@ import { NetWorthChart } from '@/components/charts/NetWorthChart'
 import { CategoryBars } from '@/components/charts/CategoryBars'
 import { MonthlyFlowChart } from '@/components/charts/MonthlyFlowChart'
 import { CategoryTransactionsModal } from '@/components/transactions/CategoryTransactionsModal'
+import { UncategorizedWidget } from '@/components/dashboard/UncategorizedWidget'
 import { formatCurrency, formatMonth, monthRange } from '@/lib/format'
 import { MOCK_INSIGHTS } from '@/lib/mock'
 import { applyFilters, computeCashFlow, computeCategoryBreakdown, computeMonthlyFinancialSeries } from '@/engine/CashFlowEngine'
 import { netWorthForMonth } from '@/investments/NetWorthEngine'
 import { useTransactions } from '@/lib/hooks/useTransactions'
 import { useNetWorth } from '@/lib/hooks/useNetWorth'
+import { useAccounts } from '@/lib/hooks/useAccounts'
 import { useTransactionsSince } from '@/lib/hooks/useTransactionsSince'
 import { useUser } from '@/lib/UserContext'
 
@@ -32,6 +34,7 @@ export function Dashboard() {
   const { userId, userName, month } = useUser()
   const { transactions, loading: txLoading, handleUpdate, refetch } = useTransactions(month, userId)
   const { timeline, loading: nwLoading }     = useNetWorth(userId, month)
+  const { accounts, cards }                  = useAccounts(userId, month)
   const { transactions: flowTxs, loading: flowLoading } = useTransactionsSince(FLOW_START_MONTH, userId)
   const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null)
   const [selectedFlow, setSelectedFlow] = useState<'income' | 'expense' | null>(null)
@@ -84,6 +87,11 @@ export function Dashboard() {
           <p className="text-sm text-gray-400 mt-0.5">{userName} · {formatMonth(month)}</p>
         </div>
       </div>
+
+      {/* ── Transações sem categoria ─────────────────────────── */}
+      {!txLoading && (
+        <UncategorizedWidget transactions={monthTxs} accounts={accounts} cards={cards} />
+      )}
 
       {/* ── Block 1: Resumo ──────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

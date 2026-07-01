@@ -197,6 +197,12 @@ Rotas em [`App.tsx`](src/app/App.tsx). Usuário e **mês selecionado** vêm do `
 
 ### Dashboard — [`pages/Dashboard.tsx`](src/app/pages/Dashboard.tsx) (`/`)
 "Estou melhor ou pior?" em 5 segundos. Blocos:
+0. **Sem categoria:** [`UncategorizedWidget`](src/components/dashboard/UncategorizedWidget.tsx) — mostra
+   quantas transações do mês estão sem categoria. Expande em conta/cartão (com contagem por fonte);
+   clicar numa fonte abre `/transacoes?uncat=1&cardId=…|accountId=…` (Transações já filtrado por
+   aquela conta/cartão + "sem categoria"); "Ver todas" abre `/transacoes?uncat=1`. Quando não há
+   pendências, exibe "✓ Tudo classificado". A página de Transações lê esses query params (via
+   `useSearchParams`), aplica o filtro específico com um chip removível e limpa a URL.
 1. **Resumo:** Patrimônio total (de `netWorthForMonth`) + variação; cards de Receita e
    Despesa (de `computeCashFlow`). Receita/Despesa são clicáveis → modal com as transações.
 2. **Evolução do patrimônio:** `NetWorthChart` sobre o `timeline` do `useNetWorth`.
