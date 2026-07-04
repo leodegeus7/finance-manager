@@ -9,7 +9,8 @@ import { resolveHandler, isCardHandler, isMuriloHandler } from '@/import/Handler
 import { runImportPipeline } from '@/import/ImportPipeline'
 import { NormalizedTransaction } from '@/import/types'
 import { InterCreditPDFHandler } from '@/import/handlers/InterCreditPDFHandler'
-import { extractPDFText } from '@/import/utils/pdf'
+import { C6CreditPDFHandler } from '@/import/handlers/C6CreditPDFHandler'
+import { extractPDFText, isPasswordError } from '@/import/utils/pdf'
 import { upsertTransactions, ImportClassification } from '@/lib/db/import'
 import { AccountRow, CardRow } from '@/lib/db/accounts'
 import { CategoryRow, filterCategories } from '@/lib/db/categories'
@@ -28,12 +29,13 @@ interface Props {
   onSuccess: (month?: string) => void  // month = primary competency_month of imported txs
 }
 
-type Step = 'idle' | 'detecting' | 'preview' | 'saving' | 'done' | 'error'
+type Step = 'idle' | 'detecting' | 'password' | 'preview' | 'saving' | 'done' | 'error'
 
 const SOURCE_LABELS: Record<string, string> = {
   nubank_account:    'Nubank Conta',
   nubank_credit:     'Nubank Cartão',
   c6_credit:         'C6 Cartão',
+  c6_credit_pdf:     'C6 Cartão (fatura PDF)',
   inter_credit:      'Inter Cartão',
   murilo_transacoes: 'Murilo — Todas as Transações',
 }
@@ -47,7 +49,7 @@ function guessStatementMonth(fileName: string): string {
 
 function guessCard(source: string, cards: CardRow[]): CardRow | undefined {
   if (source === 'nubank_credit') return cards.find((c) => c.bank === 'nubank') ?? cards[0]
-  if (source === 'c6_credit')     return cards.find((c) => c.bank === 'c6')     ?? cards[0]
+  if (source === 'c6_credit' || source === 'c6_credit_pdf') return cards.find((c) => c.bank === 'c6') ?? cards[0]
   if (source === 'inter_credit')  return cards.find((c) => c.bank === 'inter')  ?? cards[0]
   return cards[0]
 }
@@ -102,8 +104,10 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
   const [validationWarning, setValidationWarning] = useState('')
   const [errorMsg, setErrorMsg]           = useState('')
   const [saving, setSaving]               = useState(false)
+  const [pdfPassword, setPdfPassword]     = useState('')
+  const [passwordError, setPasswordError] = useState('')
 
-  const handleFile = useCallback(async (f: File) => {
+  const handleFile = useCallback(async (f: File, password?: string) => {
     setFile(f)
     setStep('detecting')
     setErrorMsg('')
@@ -113,7 +117,17 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
       let content = ''
       if (f.name.toLowerCase().endsWith('.pdf')) {
         const buf = await f.arrayBuffer()
-        content = await extractPDFText(buf)
+        try {
+          content = await extractPDFText(buf, password)
+        } catch (e) {
+          if (isPasswordError(e)) {
+            // Encrypted PDF (e.g. C6 invoice) → ask for the password and retry.
+            setPasswordError(password ? 'Senha incorreta. Tente novamente.' : '')
+            setStep('password')
+            return
+          }
+          throw e
+        }
       } else {
         content = await f.text()
       }
@@ -125,7 +139,10 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
       setSource(handler.source)
       setNeedsCard(isCard)
 
-      const monthGuess = guessStatementMonth(f.name)
+      // C6 PDF invoice carries its own due date → use it as the invoice month.
+      const monthGuess =
+        (handler.source === 'c6_credit_pdf' && C6CreditPDFHandler.detectStatementMonth(content)) ||
+        guessStatementMonth(f.name)
       setStatementMonth(monthGuess)
 
       let resolvedCardId: string | undefined
@@ -167,10 +184,13 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
         pipeline = runImportPipeline({ fileName: f.name, fileContent: content, context: ctx })
       }
 
-      // PDF validation warning
-      if (f.name.toLowerCase().endsWith('.pdf') && handler.source === 'inter_credit') {
-        const pdfHandler = new InterCreditPDFHandler()
-        const val = pdfHandler.validateTotal(content, pipeline.transactions)
+      // PDF validation warning — compare extracted sum vs the invoice total.
+      const validator =
+        handler.source === 'inter_credit' ? new InterCreditPDFHandler()
+        : handler.source === 'c6_credit_pdf' ? new C6CreditPDFHandler()
+        : null
+      if (validator) {
+        const val = validator.validateTotal(content, pipeline.transactions)
         if (!val.ok) {
           const fmt = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
           setValidationWarning(
@@ -398,12 +418,43 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
             ) : (
               <>
                 <p className="text-sm font-medium text-gray-600">Arraste ou clique para selecionar</p>
-                <p className="text-xs text-gray-400 mt-1">CSV · Nubank, C6 · PDF · Inter</p>
+                <p className="text-xs text-gray-400 mt-1">CSV · Nubank, C6 · PDF · Inter, C6 (fatura c/ senha)</p>
               </>
             )}
             <input ref={fileRef} type="file" accept=".csv,.pdf" className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
           </div>
+        )}
+
+        {/* ── password (PDF protegido, ex.: fatura C6) ── */}
+        {step === 'password' && file && (
+          <form
+            className="space-y-3"
+            onSubmit={(e) => { e.preventDefault(); if (pdfPassword) handleFile(file, pdfPassword) }}
+          >
+            <p className="text-sm text-gray-600">
+              O PDF <span className="font-medium">{file.name}</span> está protegido por senha.
+            </p>
+            <input
+              type="password"
+              autoFocus
+              placeholder="Senha do PDF"
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              value={pdfPassword}
+              onChange={(e) => setPdfPassword(e.target.value)}
+            />
+            {passwordError && <p className="text-xs text-red-600">{passwordError}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={onClose}
+                className="flex-1 border border-gray-200 text-sm font-medium py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                Cancelar
+              </button>
+              <button type="submit" disabled={!pdfPassword}
+                className="flex-1 bg-gray-900 text-white text-sm font-medium py-2.5 rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-40">
+                Abrir fatura
+              </button>
+            </div>
+          </form>
         )}
 
         {/* ── preview ── */}

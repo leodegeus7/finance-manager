@@ -21,13 +21,22 @@ function findPDFStart(buffer: ArrayBuffer): ArrayBuffer {
   return buffer // not found — pass as-is and let pdfjs error
 }
 
+/** True if the error thrown by pdfjs means the PDF needs a (correct) password. */
+export function isPasswordError(err: unknown): boolean {
+  return !!err && typeof err === 'object' && (err as { name?: string }).name === 'PasswordException'
+}
+
 /**
  * Extracts text from a PDF ArrayBuffer.
  * Groups items by Y position to reconstruct lines (similar to pdfplumber).
  * Returns one string per page, joined by newline.
+ *
+ * `password` is forwarded to pdfjs for encrypted PDFs (e.g. C6 invoices). When
+ * a PDF is encrypted and no/incorrect password is given, pdfjs rejects with a
+ * PasswordException — detect it via `isPasswordError`.
  */
-export async function extractPDFText(buffer: ArrayBuffer): Promise<string> {
-  const pdf = await pdfjs.getDocument({ data: findPDFStart(buffer) }).promise
+export async function extractPDFText(buffer: ArrayBuffer, password?: string): Promise<string> {
+  const pdf = await pdfjs.getDocument({ data: findPDFStart(buffer), password }).promise
   const pages: string[] = []
 
   for (let i = 1; i <= pdf.numPages; i++) {

@@ -278,11 +278,19 @@ Status mensal de tarefas (ex.: lançar saldo das contas via `BalanceEntryModal` 
 Pipeline em [`src/import/ImportPipeline.ts`](src/import/ImportPipeline.ts): resolve handler
 (por nome de arquivo + headers) → parse → normalize → dedup por `external_id`. **Pipeline puro,
 não grava no banco** (o caller faz upsert via Supabase, idempotente por `external_id`).
+Para **PDF**, o `HandlerRegistry` passa as **linhas do texto extraído** ao `identify` (o nome do
+arquivo costuma não ter dica do banco), então handlers de PDF podem se identificar por conteúdo.
 
 Handlers em `src/import/handlers/` (cada um implementa `identify`/`parse`/`normalize`):
 - `NubankAccountHandler` — extrato de conta Nubank (CSV)
 - `NubankCreditHandler` — fatura de cartão Nubank (CSV)
 - `C6CreditHandler` — fatura C6 (CSV, com parcelas)
+- `C6CreditPDFHandler` — fatura C6 (PDF **protegido por senha**). Identifica por conteúdo
+  ("C6 Carbon"/"Banco C6"), lê linhas nacional/internacional (valor colado a `USD…`)/IOF (`…IOF`),
+  parcelas, estorno=crédito, pula "Pagamento Fatura", infere o ano pela data de fechamento,
+  auto-detecta o mês da fatura (`Vencimento`) e valida a soma vs "Total a pagar". O
+  [`ImportModal`](src/components/import/ImportModal.tsx) pede a **senha** quando o PDF é
+  protegido (`extractPDFText(buf, password)`; `isPasswordError` detecta a `PasswordException`).
 - `InterCreditPDFHandler` — fatura Inter (PDF, via pdfjs)
 - `MuriloTransacoesHandler` — planilha de transações do Murilo
 

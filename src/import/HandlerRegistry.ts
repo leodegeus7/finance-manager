@@ -8,13 +8,15 @@ import { ImportHandler, RawRow } from './types'
 import { NubankAccountHandler }      from './handlers/NubankAccountHandler'
 import { NubankCreditHandler }        from './handlers/NubankCreditHandler'
 import { C6CreditHandler }            from './handlers/C6CreditHandler'
+import { C6CreditPDFHandler }         from './handlers/C6CreditPDFHandler'
 import { InterCreditPDFHandler }      from './handlers/InterCreditPDFHandler'
 import { MuriloTransacoesHandler }    from './handlers/MuriloTransacoesHandler'
 import { parseCSV }                   from './utils/csv'
 
 // Order matters for identify() resolution
 const HANDLERS: ImportHandler[] = [
-  new InterCreditPDFHandler(),      // Check PDF first — identified by extension
+  new InterCreditPDFHandler(),      // PDF — identified by 'inter' in filename
+  new C6CreditPDFHandler(),         // PDF — identified by C6 markers in the text
   new MuriloTransacoesHandler(),    // Before other handlers — unique SeparaçãoLeo header
   new NubankCreditHandler(),        // CC before account (both have 'nubank' in name)
   new NubankAccountHandler(),
@@ -36,9 +38,12 @@ export function resolveHandler(fileName: string, fileContent: string): HandlerRe
   const isPDF = fileName.toLowerCase().endsWith('.pdf')
 
   if (isPDF) {
+    // fileContent is the pre-extracted PDF text — pass its lines so handlers
+    // can identify by content (a PDF filename often lacks a bank hint).
+    const lines = fileContent ? fileContent.split('\n').map((l) => l.trim()).slice(0, 200) : []
     for (const handler of HANDLERS) {
-      if (handler.identify(fileName, [])) {
-        return { handler, headers: [], rows: [] }
+      if (handler.identify(fileName, lines)) {
+        return { handler, headers: lines, rows: [] }
       }
     }
     throw new Error(`Nenhum handler encontrado para o PDF "${fileName}".`)
@@ -67,7 +72,7 @@ export function listHandlers(): string[] {
 
 /** Returns whether a handler needs a credit card context (vs account) */
 export function isCardHandler(source: string): boolean {
-  return ['nubank_credit', 'c6_credit', 'inter_credit'].includes(source)
+  return ['nubank_credit', 'c6_credit', 'c6_credit_pdf', 'inter_credit'].includes(source)
 }
 
 /** Returns whether a handler is the Murilo multi-source CSV */
