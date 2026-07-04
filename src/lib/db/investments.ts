@@ -65,3 +65,52 @@ export async function fetchInvestmentFlows(userId: string): Promise<InvestmentFl
     net_deposit: Number(r.net_deposit),
   }))
 }
+
+// Composição por ativo de uma corretora (snapshot do PosicaoDetalhada, etc.).
+export interface HoldingRow {
+  custodian: string
+  snapshot_date: string
+  asset_class: 'fundo' | 'acao' | 'fii' | 'renda_fixa' | string
+  ticker: string | null
+  name: string
+  quantity: number | null
+  avg_price: number | null
+  cost_basis: number | null
+  market_value: number
+  pct_alloc: number | null
+  return_pct: number | null
+}
+
+/**
+ * Fetches the latest holdings snapshot per custodian for a user. Resilient to
+ * the table not existing yet (migration not run) → returns [].
+ */
+export async function fetchHoldings(userId: string): Promise<HoldingRow[]> {
+  const { data, error } = await supabase
+    .from('investment_holdings')
+    .select('custodian, snapshot_date, asset_class, ticker, name, quantity, avg_price, cost_basis, market_value, pct_alloc, return_pct')
+    .eq('user_id', userId)
+    .order('market_value', { ascending: false })
+
+  if (error) return []
+  const rows = (data ?? []).map((r: any) => ({
+    custodian:     r.custodian as string,
+    snapshot_date: r.snapshot_date as string,
+    asset_class:   r.asset_class as HoldingRow['asset_class'],
+    ticker:        (r.ticker as string | null) ?? null,
+    name:          r.name as string,
+    quantity:      r.quantity == null ? null : Number(r.quantity),
+    avg_price:     r.avg_price == null ? null : Number(r.avg_price),
+    cost_basis:    r.cost_basis == null ? null : Number(r.cost_basis),
+    market_value:  Number(r.market_value),
+    pct_alloc:     r.pct_alloc == null ? null : Number(r.pct_alloc),
+    return_pct:    r.return_pct == null ? null : Number(r.return_pct),
+  }))
+  // Keep only the most recent snapshot per custodian.
+  const latest = new Map<string, string>()
+  for (const r of rows) {
+    const cur = latest.get(r.custodian)
+    if (!cur || r.snapshot_date > cur) latest.set(r.custodian, r.snapshot_date)
+  }
+  return rows.filter((r) => r.snapshot_date === latest.get(r.custodian))
+}

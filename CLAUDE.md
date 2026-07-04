@@ -123,12 +123,17 @@ ausente = terceiro (amigo, etc.). A soma dos `pct` deve dar 100.
   porque reconstruir ganho histórico de saldos lançados à mão é não-confiável.
 - **`investment_flows`** — aporte/resgate líquido por conta e mês (BRL). Quando existe, o
   `PerformanceEngine` calcula rendimento **real** (`Δvalor − aporte`) em vez de estimativa. Semeado
-  da Bitso (CSVs funding/withdrawal/conversion; cripto/USD convertidos a BRL pela cotação da data).
-- **Migrações** (idempotentes, rodar no SQL Editor):
-  [`20260703_investments.sql`](supabase/migrations/20260703_investments.sql) (colunas + tabelas +
-  pré-marca corretoras + seed XP) e
-  [`20260704_investment_flows_bitso.sql`](supabase/migrations/20260704_investment_flows_bitso.sql)
-  (investment_flows + seed Bitso).
+  da Bitso e da Binance (CSVs oficiais; cripto/USD convertidos a BRL pela cotação da data). Só os
+  anos **dentro da janela de dados** deixam de ser estimativa (ex.: Binance 2022–2025 real; 2019–2021
+  e 2026 ainda estimados, marcados com `*`).
+- **`investment_holdings`** — composição por ativo de uma corretora (o que tem DENTRO): snapshot do
+  `PosicaoDetalhada.xlsx` da XP (fundos/ações/FIIs/renda fixa, com valor, custo, qtd, %, rentabilidade).
+  Só visualização — NÃO entra no cálculo de patrimônio. `return_pct = (mkt − custo)/custo`.
+- **Migrações** (idempotentes, rodar no SQL Editor), em ordem:
+  [`20260703_investments.sql`](supabase/migrations/20260703_investments.sql),
+  [`20260704_investment_flows_bitso.sql`](supabase/migrations/20260704_investment_flows_bitso.sql),
+  [`20260705_investment_flows_binance.sql`](supabase/migrations/20260705_investment_flows_binance.sql),
+  [`20260706_investment_holdings_xp.sql`](supabase/migrations/20260706_investment_holdings_xp.sql).
 
 ---
 
@@ -253,8 +258,9 @@ desde `INVOICE_START_MONTH = '2026-04-01'`. CRUD de contas e cartões. Cada cont
 ### Patrimônio — [`pages/NetWorth.tsx`](src/app/pages/NetWorth.tsx) (`/patrimonio`)
 Riqueza real: contas + investimentos + ativos, cada um com valor e variação.
 `NetWorthChart` + `IncomeEvolutionChart` (renda desde 2026-04). Tabela de rendimento **ano a
-ano** por corretora + consolidado ([`YearPerformanceTable`](src/components/investments/YearPerformanceTable.tsx)).
-Seção de casal via `computeSplitReport` (`OwedSummary`). CRUD de ativos.
+ano** por corretora + consolidado ([`YearPerformanceTable`](src/components/investments/YearPerformanceTable.tsx))
+e **composição por ativo** da corretora ([`HoldingsCard`](src/components/investments/HoldingsCard.tsx),
+de `investment_holdings`). Seção de casal via `computeSplitReport` (`OwedSummary`). CRUD de ativos.
 
 ### Casal — [`pages/Casal.tsx`](src/app/pages/Casal.tsx) (`/casal`)
 Análise mensal de despesas compartilhadas: total + barras por categoria (drill-down),
@@ -302,11 +308,11 @@ Handlers em `src/import/handlers/` (cada um implementa `identify`/`parse`/`norma
 ## 8. Melhorias pendentes / dívidas
 
 - Dashboard usar `generateInsights` real em vez de `MOCK_INSIGHTS`.
-- **Investimentos Fase 2:** importar histórico oficial de depósitos/saques por corretora
-  (XP/Binance/Bitso) → aportes reais → rendimento mensal exato (hoje mensal = variação de valor,
-  e o anual só é exato p/ XP via seed). **Fase 3:** composição por ticker via import do
-  `PosicaoDetalhada.xlsx` (precisa dep `xlsx`). Precisa de exports de exemplo de Binance/Bitso.
-- `account_balance_history` já está no `schema.sql` (resolvido). Auth real + RLS por usuário
-  (hoje é `allow all`). Sem testes automatizados.
+- **Investimentos:** Bitso e Binance (2022–2025) já têm aportes reais (seed dos CSVs); **falta**
+  completar Binance 2019–2021 e 2026 (exportar esses períodos). Os seeds hoje são **offline**
+  (parse por script → SQL); um **importador in-app reusável** (drag do CSV/xlsx) é melhoria futura
+  (o de xlsx precisaria da dep `xlsx`). Composição por ticker é só da XP (snapshot manual).
+- `account_balance_history` já está no `schema.sql` (resolvido). Dashboard usar `generateInsights`
+  real em vez de `MOCK_INSIGHTS`. Auth real + RLS por usuário (hoje `allow all`). Sem testes.
 </content>
 </invoke>

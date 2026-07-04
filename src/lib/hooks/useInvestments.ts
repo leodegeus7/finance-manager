@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { fetchAccounts, AccountRow } from '@/lib/db/accounts'
 import { fetchAccountBalanceHistory, AccountHistoryRow } from '@/lib/db/networth'
-import { fetchYearPerformance, fetchInvestmentFlows, YearPerformanceRow, InvestmentFlowRow } from '@/lib/db/investments'
+import { fetchYearPerformance, fetchInvestmentFlows, fetchHoldings, YearPerformanceRow, InvestmentFlowRow, HoldingRow } from '@/lib/db/investments'
 import {
   buildValueSeries, computeYearlyTable, consolidateYearly, summarizeInvestments, custodianOf,
   CustodianSeries, MonthValue, YearRow, InvestmentSummary,
@@ -14,6 +14,7 @@ export interface InvestmentsData {
   yearly: YearRow[]
   yearlyTotals: YearRow[]
   summary: InvestmentSummary
+  holdings: HoldingRow[]
   hasInvestmentAccounts: boolean
   loading: boolean
   error: string | null
@@ -28,6 +29,7 @@ export function useInvestments(userId: string, month: string): InvestmentsData {
   const [history, setHistory]   = useState<AccountHistoryRow[]>([])
   const [seed, setSeed]         = useState<YearPerformanceRow[]>([])
   const [flows, setFlows]       = useState<InvestmentFlowRow[]>([])
+  const [holdings, setHoldings] = useState<HoldingRow[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
 
@@ -39,8 +41,9 @@ export function useInvestments(userId: string, month: string): InvestmentsData {
       fetchAccountBalanceHistory(userId),
       fetchYearPerformance(userId),
       fetchInvestmentFlows(userId),
+      fetchHoldings(userId),
     ])
-      .then(([acc, hist, s, f]) => { setAccounts(acc); setHistory(hist); setSeed(s); setFlows(f) })
+      .then(([acc, hist, s, f, h]) => { setAccounts(acc); setHistory(hist); setSeed(s); setFlows(f); setHoldings(h) })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }, [userId])
@@ -74,8 +77,8 @@ export function useInvestments(userId: string, month: string): InvestmentsData {
     const yearlyTotals = consolidateYearly(yearly)
     const summary = summarizeInvestments(yearlyTotals, total, month)
 
-    return { byCustodian, total, yearly, yearlyTotals, summary, hasInvestmentAccounts: invIds.size > 0 }
-  }, [accounts, history, seed, flows, month])
+    return { byCustodian, total, yearly, yearlyTotals, summary, holdings, hasInvestmentAccounts: invIds.size > 0 }
+  }, [accounts, history, seed, flows, holdings, month])
 
   return { ...data, loading, error, reload: load }
 }

@@ -22,6 +22,7 @@ import { createAsset, updateAssetValue } from '@/lib/db/networth'
 import { AssetType } from '@/investments/types'
 import { IncomeEvolutionChart } from '@/components/charts/IncomeEvolutionChart'
 import { YearPerformanceTable } from '@/components/investments/YearPerformanceTable'
+import { HoldingsCard } from '@/components/investments/HoldingsCard'
 import { useInvestments } from '@/lib/hooks/useInvestments'
 import { useTransactionsSince } from '@/lib/hooks/useTransactionsSince'
 import { useState, useEffect } from 'react'
@@ -168,6 +169,11 @@ export function NetWorth() {
       {/* Rendimento dos investimentos — ano a ano */}
       {investments.hasInvestmentAccounts && (
         <YearPerformanceTable rows={investments.yearly} totals={investments.yearlyTotals} />
+      )}
+
+      {/* Composição por ativo (o que tem dentro da corretora) */}
+      {investments.holdings.length > 0 && (
+        <HoldingsCard holdings={investments.holdings} />
       )}
 
       {/* Two-column: Accounts + Assets */}
