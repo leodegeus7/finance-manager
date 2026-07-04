@@ -144,7 +144,8 @@ function computeYearlyFromValue(
     else cur.last = p.value
   }
 
-  // Soma dos aportes por ano.
+  // Soma dos aportes por ano + janela de cobertura (anos fora dela ficam
+  // como estimativa, pois não temos os aportes desses períodos).
   const flowByYear = new Map<number, number>()
   if (flows) {
     for (const [m, v] of flows) {
@@ -152,6 +153,9 @@ function computeYearlyFromValue(
       flowByYear.set(y, (flowByYear.get(y) ?? 0) + v)
     }
   }
+  const flowYears = [...flowByYear.keys()]
+  const covStart = flowYears.length ? Math.min(...flowYears) : Infinity
+  const covEnd   = flowYears.length ? Math.max(...flowYears) : -Infinity
 
   const years = [...yearVals.keys()].sort((a, b) => a - b)
   const rows: YearRow[] = []
@@ -160,7 +164,8 @@ function computeYearlyFromValue(
     const { first, last } = yearVals.get(y)!
     const inicial = prevFinal ?? first
     const final = last
-    const movimentacoes = round(flowByYear.get(y) ?? 0)
+    const covered = !!flows && y >= covStart && y <= covEnd
+    const movimentacoes = covered ? round(flowByYear.get(y) ?? 0) : 0
     const rendimento = round(final - inicial - movimentacoes)
     const base = returnBase(inicial, movimentacoes)
     rows.push({
@@ -171,7 +176,7 @@ function computeYearlyFromValue(
       movimentacoes,
       rendimento,
       rentabilidade_pct: base > 0 ? round((rendimento / base) * 100) : null,
-      estimated: !flows,
+      estimated: !covered,
     })
     prevFinal = final
   }
