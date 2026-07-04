@@ -7,6 +7,7 @@ import { useUser } from '@/lib/UserContext'
 import {
   createAccount, deleteAccount,
   createCard, deleteCard,
+  updateAccountInvestment,
   AccountRow, CardRow,
 } from '@/lib/db/accounts'
 import { fetchLatestAccountBalances, AccountLatestEntry, enrichAccounts } from '@/lib/db/networth'
@@ -170,6 +171,13 @@ export function AccountsCards() {
     refetch()
   }
 
+  async function toggleInvestment(acc: AccountRow) {
+    const next = !acc.is_investment
+    // Ao marcar, sugere o próprio nome como rótulo de corretora (custodian).
+    await updateAccountInvestment(acc.id, next, next ? (acc.custodian ?? acc.name) : acc.custodian ?? null)
+    refetch()
+  }
+
   async function confirmDeleteCard() {
     await deleteCard(cardDel.id)
     setCardDel(IDLE)
@@ -274,6 +282,17 @@ export function AccountsCards() {
                   <div>
                     <p className="text-sm font-semibold text-gray-900">{acc.name}</p>
                     <p className="text-xs text-gray-400 mt-0.5 capitalize">{acc.bank}</p>
+                    <button
+                      onClick={() => toggleInvestment(acc)}
+                      className={`mt-1.5 text-[11px] font-medium px-2 py-0.5 rounded-md border transition-colors ${
+                        acc.is_investment
+                          ? 'bg-blue-50 border-blue-200 text-blue-700'
+                          : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                      }`}
+                      title="Marcar como conta de investimento (entra no rendimento)"
+                    >
+                      {acc.is_investment ? `✓ Investimento${acc.custodian && acc.custodian !== acc.name ? ` · ${acc.custodian}` : ''}` : 'Investimento'}
+                    </button>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">

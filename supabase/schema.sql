@@ -188,13 +188,21 @@ on conflict (id) do nothing;
 
 -- ── ACCOUNTS ─────────────────────────────────────────────────
 create table accounts (
-  id         text primary key,
-  user_id    text not null references users(id),
-  name       text not null,
-  bank       text not null,
-  balance    numeric(14,2) not null default 0,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
+  id            text primary key,
+  user_id       text not null references users(id),
+  name          text not null,
+  bank          text not null,
+  balance       numeric(14,2) not null default 0,
+  -- When true, this account is an investment custodian (XP, Binance, Bitso,
+  -- Avenue, ...). Used to compute investment performance (see investment_flows
+  -- + account_balance_history) instead of counting as spending cash.
+  is_investment boolean not null default false,
+  -- Groups investment accounts under one broker for performance (e.g. the XP
+  -- portfolio + XP settlement cash both use custodian 'XP'). NULL → the account
+  -- stands on its own (grouped by its name).
+  custodian     text,
+  created_at    timestamptz default now(),
+  updated_at    timestamptz default now()
 );
 
 insert into accounts (id, user_id, name, bank, balance) values
@@ -321,6 +329,45 @@ insert into net_worth_snapshots (month, accounts_total, assets_total, net_worth,
   ('2024-04-01', 10200, 13800, 24000, 1900, 8.6)
 on conflict (month) do nothing;
 
+-- ── ACCOUNT BALANCE HISTORY ──────────────────────────────────
+-- Monthly closing balance per account, entered manually via the Checklist
+-- (BalanceEntryModal). This is the source of truth for month-by-month account
+-- balances (and thus the net-worth timeline), NOT the static accounts.balance.
+create table account_balance_history (
+  id         uuid primary key default gen_random_uuid(),
+  account_id text not null references accounts(id) on delete cascade,
+  month      date not null,               -- YYYY-MM-01
+  balance    numeric(14,2) not null,
+  created_at timestamptz default now(),
+  unique (account_id, month)
+);
+create index idx_abh_account_month on account_balance_history(account_id, month);
+
+-- ── INVESTMENT YEAR PERFORMANCE ──────────────────────────────
+-- Authoritative year-by-year performance per custodian, mirroring a broker's
+-- own report (e.g. the XP "Evolução patrimonial" PDF). Kept as an explicit
+-- seed because reconstructing historical gain from manually-entered balances
+-- is unreliable (accounts were reassigned; contributions weren't tracked).
+--   rendimento = patrimonio_final - patrimonio_inicial - movimentacoes
+-- source: 'xp_pdf' (seeded) | 'computed' (derived) | 'manual'
+create table investment_year_performance (
+  id                uuid primary key default gen_random_uuid(),
+  user_id           text not null references users(id),
+  custodian         text not null,           -- 'XP' | 'Binance' | 'Bitso' | ...
+  year              int  not null,
+  patrimonio_inicial numeric(14,2) not null,
+  patrimonio_final   numeric(14,2) not null,
+  movimentacoes      numeric(14,2) not null default 0,  -- +aporte / -resgate
+  rendimento         numeric(14,2) not null,             -- ganho/perda no ano
+  rentabilidade_pct  numeric(8,4),
+  source            text not null default 'manual'
+                    check (source in ('xp_pdf','computed','manual')),
+  notes             text,
+  created_at        timestamptz default now(),
+  unique (user_id, custodian, year)
+);
+create index idx_iyp_custodian_year on investment_year_performance(custodian, year);
+
 -- ── ROW LEVEL SECURITY (basic) ───────────────────────────────
 -- Enable for all tables; allow anon for now (add auth later)
 alter table users              enable row level security;
@@ -332,6 +379,8 @@ alter table asset_movements    enable row level security;
 alter table net_worth_snapshots enable row level security;
 alter table categories         enable row level security;
 alter table sharing_rules      enable row level security;
+alter table account_balance_history enable row level security;
+alter table investment_year_performance enable row level security;
 
 -- Permissive policies (open for now — tighten when auth is added)
 create policy "allow all" on users              for all using (true) with check (true);
@@ -343,3 +392,5 @@ create policy "allow all" on asset_movements    for all using (true) with check 
 create policy "allow all" on net_worth_snapshots for all using (true) with check (true);
 create policy "allow all" on categories         for all using (true) with check (true);
 create policy "allow all" on sharing_rules      for all using (true) with check (true);
+create policy "allow all" on account_balance_history for all using (true) with check (true);
+create policy "allow all" on investment_year_performance for all using (true) with check (true);

@@ -21,6 +21,8 @@ import { fetchSplitTransactionsByMonth } from '@/lib/db/transactions'
 import { createAsset, updateAssetValue } from '@/lib/db/networth'
 import { AssetType } from '@/investments/types'
 import { IncomeEvolutionChart } from '@/components/charts/IncomeEvolutionChart'
+import { YearPerformanceTable } from '@/components/investments/YearPerformanceTable'
+import { useInvestments } from '@/lib/hooks/useInvestments'
 import { useTransactionsSince } from '@/lib/hooks/useTransactionsSince'
 import { useState, useEffect } from 'react'
 
@@ -28,6 +30,7 @@ export function NetWorth() {
   const { userId, userName, month } = useUser()
   const { timeline, assets, enrichedAccounts, loading, error, reload } = useNetWorth(userId, month)
   const { transactions: incomeTxs } = useTransactionsSince('2026-04-01', userId)
+  const investments = useInvestments(userId, month)
 
   // Split transactions: fetch by both competency_month AND statement_month
   const [splitTxs, setSplitTxs] = useState<import('@/engine/types').Transaction[]>([])
@@ -161,6 +164,11 @@ export function NetWorth() {
           <IncomeEvolutionChart liveTxs={incomeTxs} />
         </div>
       </Card>
+
+      {/* Rendimento dos investimentos — ano a ano */}
+      {investments.hasInvestmentAccounts && (
+        <YearPerformanceTable rows={investments.yearly} totals={investments.yearlyTotals} />
+      )}
 
       {/* Two-column: Accounts + Assets */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

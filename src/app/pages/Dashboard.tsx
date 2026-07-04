@@ -17,6 +17,7 @@ import { CategoryBars } from '@/components/charts/CategoryBars'
 import { MonthlyFlowChart } from '@/components/charts/MonthlyFlowChart'
 import { CategoryTransactionsModal } from '@/components/transactions/CategoryTransactionsModal'
 import { UncategorizedWidget } from '@/components/dashboard/UncategorizedWidget'
+import { InvestmentsPanel } from '@/components/investments/InvestmentsPanel'
 import { formatCurrency, formatMonth, monthRange } from '@/lib/format'
 import { MOCK_INSIGHTS } from '@/lib/mock'
 import { applyFilters, computeCashFlow, computeCategoryBreakdown, computeMonthlyFinancialSeries } from '@/engine/CashFlowEngine'
@@ -24,6 +25,7 @@ import { netWorthForMonth } from '@/investments/NetWorthEngine'
 import { useTransactions } from '@/lib/hooks/useTransactions'
 import { useNetWorth } from '@/lib/hooks/useNetWorth'
 import { useAccounts } from '@/lib/hooks/useAccounts'
+import { useInvestments } from '@/lib/hooks/useInvestments'
 import { useTransactionsSince } from '@/lib/hooks/useTransactionsSince'
 import { useUser } from '@/lib/UserContext'
 
@@ -35,6 +37,7 @@ export function Dashboard() {
   const { transactions, loading: txLoading, handleUpdate, refetch } = useTransactions(month, userId)
   const { timeline, loading: nwLoading }     = useNetWorth(userId, month)
   const { accounts, cards }                  = useAccounts(userId, month)
+  const investments                          = useInvestments(userId, month)
   const { transactions: flowTxs, loading: flowLoading } = useTransactionsSince(FLOW_START_MONTH, userId)
   const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null)
   const [selectedFlow, setSelectedFlow] = useState<'income' | 'expense' | null>(null)
@@ -166,6 +169,15 @@ export function Dashboard() {
           {!flowLoading && <MonthlyFlowChart data={monthlyFlow} />}
         </div>
       </Card>
+
+      {/* ── Rendimento dos investimentos ─────────────────────── */}
+      {investments.hasInvestmentAccounts && (
+        <InvestmentsPanel
+          summary={investments.summary}
+          total={investments.total}
+          loading={investments.loading}
+        />
+      )}
 
       {/* ── Block 3 + 4: Gastos & Insights ──────────────────── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -40,6 +40,8 @@ export interface AccountRow {
   name: string
   bank: string
   balance: number
+  is_investment: boolean
+  custodian?: string | null
 }
 
 export interface CardRow {
@@ -52,19 +54,35 @@ export interface CardRow {
 }
 
 export async function fetchAccounts(userId: string): Promise<AccountRow[]> {
+  // select('*') keeps this resilient to the is_investment/custodian columns not
+  // existing yet (before the investments migration runs).
   const { data, error } = await supabase
     .from('accounts')
-    .select('id, name, bank, balance')
+    .select('*')
     .eq('user_id', userId)
     .order('name')
 
   if (error) throw error
   return (data ?? []).map((r) => ({
-    id:      r.id,
-    name:    r.name,
-    bank:    r.bank,
-    balance: Number(r.balance),
+    id:            r.id,
+    name:          r.name,
+    bank:          r.bank,
+    balance:       Number(r.balance),
+    is_investment: Boolean(r.is_investment),
+    custodian:     (r.custodian as string | null) ?? null,
   }))
+}
+
+/** Marks/unmarks an account as an investment custodian (with optional broker label). */
+export async function updateAccountInvestment(
+  id: string,
+  isInvestment: boolean,
+  custodian?: string | null,
+): Promise<void> {
+  const patch: Record<string, unknown> = { is_investment: isInvestment }
+  if (custodian !== undefined) patch.custodian = custodian
+  const { error } = await supabase.from('accounts').update(patch).eq('id', id)
+  if (error) throw error
 }
 
 export async function fetchCards(userId: string, month: string): Promise<CardRow[]> {

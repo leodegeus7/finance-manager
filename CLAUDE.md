@@ -112,12 +112,17 @@ implementada).
 Array de `{ name, user_id?, pct }`. `user_id` `leo`/`murilo` = membro do casal;
 ausente = terceiro (amigo, etc.). A soma dos `pct` deve dar 100.
 
-### ⚠️ Lacuna conhecida no schema
-A tabela **`account_balance_history`** (`account_id`, `month`, `balance`) é usada
-intensamente pelo código ([`src/lib/db/networth.ts`](src/lib/db/networth.ts)) mas
-**não está em `schema.sql`**. É a fonte de verdade do saldo mês a mês das contas
-(o usuário lança o saldo manualmente no Checklist). Se for recriar o banco do
-zero, **precisa criar essa tabela à mão.** Vale adicioná-la ao schema.
+### Investimentos (contas de corretora)
+- **`accounts.is_investment`** marca contas de corretora (XP, Binance, Bitso, Avenue…);
+  **`accounts.custodian`** agrupa contas sob a mesma corretora (ex.: XP investimentos +
+  XP Conta caixa → ambos `'XP'`). Toggle na tela Contas & Cartões.
+- **`account_balance_history`** (`account_id`, `month`, `balance`) — saldo mensal, agora **no
+  `schema.sql`** (era lacuna). É a fonte do valor mês a mês das contas E dos investimentos.
+- **`investment_year_performance`** — performance anual autoritativa por corretora (patrimônio
+  inicial/final, movimentações, rendimento, rentabilidade %), semeada do PDF da XP (2018–2026),
+  porque reconstruir ganho histórico de saldos lançados à mão é não-confiável.
+- **Migração:** [`supabase/migrations/20260703_investments.sql`](supabase/migrations/20260703_investments.sql)
+  (idempotente) cria colunas/tabela + pré-marca corretoras + seed da XP. Rodar no SQL Editor.
 
 ---
 
@@ -182,6 +187,18 @@ Regra 7.3: **investimento ≠ despesa** — contribuição reduz saldo mas não 
   `netWorthForMonth(timeline, month)` (usa o mês selecionado, com fallback p/ o mais recente),
   `buildNetWorthBreakdown` (com % por ativo).
 
+### `investments/PerformanceEngine.ts` — rendimento dos investimentos
+Rendimento das contas `is_investment`, mês a mês / ano a ano. Puro, não muta.
+- `groupInvestmentAccounts` (agrupa por `custodian`), `buildValueSeries` (valor mensal por
+  corretora + total, **forward-fill** do último saldo lançado).
+- `computeYearlyTable(seed, valueSeries)` — usa o **seed autoritativo** (`investment_year_performance`)
+  onde existe (XP); para o resto **estima** pela variação de valor (`estimated: true`). NÃO mistura
+  seed + estimativa na mesma corretora. `consolidateYearly` soma tudo por ano.
+- `summarizeInvestments` — card da Dashboard: investido, rendimento no ano, variação no mês
+  (esta **inclui aportes**). Hook: [`useInvestments`](src/lib/hooks/useInvestments.ts).
+- **Aportes mês a mês (para separar rendimento de aporte no detalhe mensal) e composição por
+  ticker (import do `PosicaoDetalhada.xlsx`) são Fases 2/3 pendentes.**
+
 ### `insights/InsightEngine.ts` — alertas
 `generateInsights(ctx)` roda 8 regras (overspending, top_increases, spending_trend,
 non_essential_ratio, investment_target, investment_capacity, couple_balance, micro_expenses),
@@ -209,8 +226,11 @@ Rotas em [`App.tsx`](src/app/App.tsx). Usuário e **mês selecionado** vêm do `
 3. **Investimentos, despesas e receita por mês:** `MonthlyFlowChart` de
    `computeMonthlyFinancialSeries`, desde `FLOW_START_MONTH = '2026-04-01'`. Esconde meses
    finais ainda zerados. Transferência p/ Banco XP conta como investimento.
-4. **Gastos por categoria:** `CategoryBars` de `computeCategoryBreakdown` (clica → drill-down).
-5. **Insights:** ⚠️ **ainda usa `MOCK_INSIGHTS`** de `src/lib/mock.ts`, não o `InsightEngine`.
+4. **Rendimento dos investimentos:** [`InvestmentsPanel`](src/components/investments/InvestmentsPanel.tsx)
+   de `useInvestments` — cards (investido / rendimento no ano / variação no mês) + gráfico de
+   valor investido. Só aparece se houver conta `is_investment`.
+5. **Gastos por categoria:** `CategoryBars` de `computeCategoryBreakdown` (clica → drill-down).
+6. **Insights:** ⚠️ **ainda usa `MOCK_INSIGHTS`** de `src/lib/mock.ts`, não o `InsightEngine`.
    Trocar para `generateInsights` é uma melhoria pendente.
 
 ### Transações — [`pages/Transactions.tsx`](src/app/pages/Transactions.tsx) (`/transacoes`)
@@ -220,12 +240,14 @@ contexto/escopo, agrupamento de fatura de cartão, import por drag-and-drop, add
 ### Contas & Cartões — [`pages/AccountsCards.tsx`](src/app/pages/AccountsCards.tsx) (`/contas`)
 Saldos de contas (via `enrichAccounts` — último saldo lançado até o mês) e cartões com
 status de fatura. Gráfico de histórico de fatura por cartão (`CardInvoiceChart`),
-desde `INVOICE_START_MONTH = '2026-04-01'`. CRUD de contas e cartões.
+desde `INVOICE_START_MONTH = '2026-04-01'`. CRUD de contas e cartões. Cada conta tem um
+**toggle "Investimento"** (`updateAccountInvestment`) que a marca como corretora.
 
 ### Patrimônio — [`pages/NetWorth.tsx`](src/app/pages/NetWorth.tsx) (`/patrimonio`)
 Riqueza real: contas + investimentos + ativos, cada um com valor e variação.
-`NetWorthChart` + `IncomeEvolutionChart` (renda desde 2026-04). Seção de casal via
-`computeSplitReport` (`OwedSummary`). CRUD de ativos.
+`NetWorthChart` + `IncomeEvolutionChart` (renda desde 2026-04). Tabela de rendimento **ano a
+ano** por corretora + consolidado ([`YearPerformanceTable`](src/components/investments/YearPerformanceTable.tsx)).
+Seção de casal via `computeSplitReport` (`OwedSummary`). CRUD de ativos.
 
 ### Casal — [`pages/Casal.tsx`](src/app/pages/Casal.tsx) (`/casal`)
 Análise mensal de despesas compartilhadas: total + barras por categoria (drill-down),
@@ -273,8 +295,11 @@ Handlers em `src/import/handlers/` (cada um implementa `identify`/`parse`/`norma
 ## 8. Melhorias pendentes / dívidas
 
 - Dashboard usar `generateInsights` real em vez de `MOCK_INSIGHTS`.
-- Adicionar `account_balance_history` ao `schema.sql` (hoje só existe no banco vivo).
-- Auth real + RLS por usuário (hoje é `allow all`).
-- Sem testes automatizados.
+- **Investimentos Fase 2:** importar histórico oficial de depósitos/saques por corretora
+  (XP/Binance/Bitso) → aportes reais → rendimento mensal exato (hoje mensal = variação de valor,
+  e o anual só é exato p/ XP via seed). **Fase 3:** composição por ticker via import do
+  `PosicaoDetalhada.xlsx` (precisa dep `xlsx`). Precisa de exports de exemplo de Binance/Bitso.
+- `account_balance_history` já está no `schema.sql` (resolvido). Auth real + RLS por usuário
+  (hoje é `allow all`). Sem testes automatizados.
 </content>
 </invoke>
