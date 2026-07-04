@@ -40,3 +40,28 @@ export async function fetchYearPerformance(userId: string): Promise<YearPerforma
     source:             (r.source as YearPerformanceRow['source']) ?? 'manual',
   }))
 }
+
+// Net contribution/withdrawal per investment account per month (BRL).
+export interface InvestmentFlowRow {
+  account_id: string
+  month: string        // YYYY-MM-01
+  net_deposit: number  // +aporte / -resgate
+}
+
+/**
+ * Fetches monthly investment flows for a user's investment accounts. Resilient
+ * to the table not existing yet (migration not run) → returns [].
+ */
+export async function fetchInvestmentFlows(userId: string): Promise<InvestmentFlowRow[]> {
+  const { data, error } = await supabase
+    .from('investment_flows')
+    .select('account_id, month, net_deposit')
+    .eq('user_id', userId)
+
+  if (error) return []
+  return (data ?? []).map((r: any) => ({
+    account_id:  r.account_id as string,
+    month:       r.month as string,
+    net_deposit: Number(r.net_deposit),
+  }))
+}

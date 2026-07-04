@@ -121,8 +121,14 @@ ausente = terceiro (amigo, etc.). A soma dos `pct` deve dar 100.
 - **`investment_year_performance`** — performance anual autoritativa por corretora (patrimônio
   inicial/final, movimentações, rendimento, rentabilidade %), semeada do PDF da XP (2018–2026),
   porque reconstruir ganho histórico de saldos lançados à mão é não-confiável.
-- **Migração:** [`supabase/migrations/20260703_investments.sql`](supabase/migrations/20260703_investments.sql)
-  (idempotente) cria colunas/tabela + pré-marca corretoras + seed da XP. Rodar no SQL Editor.
+- **`investment_flows`** — aporte/resgate líquido por conta e mês (BRL). Quando existe, o
+  `PerformanceEngine` calcula rendimento **real** (`Δvalor − aporte`) em vez de estimativa. Semeado
+  da Bitso (CSVs funding/withdrawal/conversion; cripto/USD convertidos a BRL pela cotação da data).
+- **Migrações** (idempotentes, rodar no SQL Editor):
+  [`20260703_investments.sql`](supabase/migrations/20260703_investments.sql) (colunas + tabelas +
+  pré-marca corretoras + seed XP) e
+  [`20260704_investment_flows_bitso.sql`](supabase/migrations/20260704_investment_flows_bitso.sql)
+  (investment_flows + seed Bitso).
 
 ---
 
@@ -191,13 +197,14 @@ Regra 7.3: **investimento ≠ despesa** — contribuição reduz saldo mas não 
 Rendimento das contas `is_investment`, mês a mês / ano a ano. Puro, não muta.
 - `groupInvestmentAccounts` (agrupa por `custodian`), `buildValueSeries` (valor mensal por
   corretora + total, **forward-fill** do último saldo lançado).
-- `computeYearlyTable(seed, valueSeries)` — usa o **seed autoritativo** (`investment_year_performance`)
-  onde existe (XP); para o resto **estima** pela variação de valor (`estimated: true`). NÃO mistura
-  seed + estimativa na mesma corretora. `consolidateYearly` soma tudo por ano.
+- `computeYearlyTable(seed, valueSeries, flowsByCustodian)` — 3 casos por corretora: (1) **seed
+  autoritativo** (XP); (2) **rendimento real** `Δvalor − aporte` quando há `investment_flows`
+  (Bitso); (3) **estimativa** pela variação de valor quando não há aporte (`estimated: true`, ex.:
+  Binance). NÃO mistura seed + cálculo na mesma corretora. `consolidateYearly` soma por ano.
 - `summarizeInvestments` — card da Dashboard: investido, rendimento no ano, variação no mês
   (esta **inclui aportes**). Hook: [`useInvestments`](src/lib/hooks/useInvestments.ts).
-- **Aportes mês a mês (para separar rendimento de aporte no detalhe mensal) e composição por
-  ticker (import do `PosicaoDetalhada.xlsx`) são Fases 2/3 pendentes.**
+- **Pendente:** importar aportes de Binance (mesmos CSVs da Bitso) e composição por ticker da XP
+  (`PosicaoDetalhada.xlsx`, Fase 3).
 
 ### `insights/InsightEngine.ts` — alertas
 `generateInsights(ctx)` roda 8 regras (overspending, top_increases, spending_trend,

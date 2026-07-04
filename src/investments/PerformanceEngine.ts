@@ -121,13 +121,21 @@ export function buildValueSeries(
   }
 }
 
+/** % base para rentabilidade: capital inicial + aportes do período (aprox.). */
+function returnBase(inicial: number, movimentacoes: number): number {
+  return Math.max(inicial, 0) + Math.max(movimentacoes, 0)
+}
+
 /**
- * Computes an estimated year-by-year table for a custodian from its monthly
- * value series (aportes unknown → rendimento = variação de valor). Used as a
- * fallback for custodians without an authoritative seed (ex.: Binance/Bitso).
+ * Computes a year-by-year table for a custodian from its monthly value series.
+ * When `flows` (net aportes/resgates BRL por mês) é fornecido, o rendimento é
+ * REAL (`final - inicial - movimentações`); sem flows, é uma estimativa pela
+ * variação de valor (aportes desconhecidos → `estimated: true`).
  */
-function computeYearlyFromValue(series: CustodianSeries): YearRow[] {
-  // year → { first, last } value in that year
+function computeYearlyFromValue(
+  series: CustodianSeries,
+  flows?: Map<string, number>,
+): YearRow[] {
   const yearVals = new Map<number, { first: number; last: number }>()
   for (const p of series.points) {
     const y = Number(p.month.slice(0, 4))
@@ -135,6 +143,16 @@ function computeYearlyFromValue(series: CustodianSeries): YearRow[] {
     if (!cur) yearVals.set(y, { first: p.value, last: p.value })
     else cur.last = p.value
   }
+
+  // Soma dos aportes por ano.
+  const flowByYear = new Map<number, number>()
+  if (flows) {
+    for (const [m, v] of flows) {
+      const y = Number(m.slice(0, 4))
+      flowByYear.set(y, (flowByYear.get(y) ?? 0) + v)
+    }
+  }
+
   const years = [...yearVals.keys()].sort((a, b) => a - b)
   const rows: YearRow[] = []
   let prevFinal: number | null = null
@@ -142,16 +160,18 @@ function computeYearlyFromValue(series: CustodianSeries): YearRow[] {
     const { first, last } = yearVals.get(y)!
     const inicial = prevFinal ?? first
     const final = last
-    const rendimento = round(final - inicial)
+    const movimentacoes = round(flowByYear.get(y) ?? 0)
+    const rendimento = round(final - inicial - movimentacoes)
+    const base = returnBase(inicial, movimentacoes)
     rows.push({
       custodian: series.custodian,
       year: y,
       patrimonio_inicial: round(inicial),
       patrimonio_final: round(final),
-      movimentacoes: 0,
+      movimentacoes,
       rendimento,
-      rentabilidade_pct: inicial > 0 ? round((rendimento / inicial) * 100) : null,
-      estimated: true,
+      rentabilidade_pct: base > 0 ? round((rendimento / base) * 100) : null,
+      estimated: !flows,
     })
     prevFinal = final
   }
@@ -160,12 +180,14 @@ function computeYearlyFromValue(series: CustodianSeries): YearRow[] {
 
 /**
  * Builds the full year-by-year table: authoritative seed rows where available
- * (per custodian), estimated-from-value rows for the rest. A custodian with any
- * seed row uses ONLY the seed (never mixes seed + estimate for the same broker).
+ * (XP), rendimento REAL para corretoras com aportes importados (`flowsByCustodian`),
+ * e estimativa pela variação de valor para o resto. Uma corretora com seed usa
+ * SÓ o seed (nunca mistura seed + cálculo para o mesmo broker).
  */
 export function computeYearlyTable(
   seed: YearPerformanceRow[],
   valueSeries: CustodianSeries[],
+  flowsByCustodian?: Map<string, Map<string, number>>,
 ): YearRow[] {
   const seededCustodians = new Set(seed.map((r) => r.custodian))
 
@@ -183,7 +205,7 @@ export function computeYearlyTable(
   const computed: YearRow[] = []
   for (const series of valueSeries) {
     if (seededCustodians.has(series.custodian)) continue
-    computed.push(...computeYearlyFromValue(series))
+    computed.push(...computeYearlyFromValue(series, flowsByCustodian?.get(series.custodian)))
   }
 
   return [...seedRows, ...computed].sort(
@@ -208,8 +230,8 @@ export function consolidateYearly(rows: YearRow[]): YearRow[] {
   }
   const out = [...byYear.values()]
   for (const r of out) {
-    r.rentabilidade_pct =
-      r.patrimonio_inicial > 0 ? round((r.rendimento / r.patrimonio_inicial) * 100) : null
+    const base = returnBase(r.patrimonio_inicial, r.movimentacoes)
+    r.rentabilidade_pct = base > 0 ? round((r.rendimento / base) * 100) : null
   }
   return out.sort((a, b) => a.year - b.year)
 }

@@ -368,6 +368,26 @@ create table investment_year_performance (
 );
 create index idx_iyp_custodian_year on investment_year_performance(custodian, year);
 
+-- ── INVESTMENT FLOWS ─────────────────────────────────────────
+-- Net contributions/withdrawals ("movimentações") into an investment account
+-- per month, in BRL. Lets the engine separate real return from new money:
+--   rendimento(mês) = valor_fim - valor_início - net_deposit
+-- Crypto/USD flows are converted to BRL at transaction-time price on import.
+-- source: 'import' (from a broker export) | 'transfer' (linked tx) | 'manual'
+create table investment_flows (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     text not null references users(id),
+  account_id  text not null references accounts(id) on delete cascade,
+  month       date not null,               -- YYYY-MM-01
+  net_deposit numeric(14,2) not null,       -- +aporte / -resgate (BRL)
+  source      text not null default 'manual'
+              check (source in ('import','transfer','manual')),
+  notes       text,
+  created_at  timestamptz default now(),
+  unique (account_id, month, source)
+);
+create index idx_iflows_account_month on investment_flows(account_id, month);
+
 -- ── ROW LEVEL SECURITY (basic) ───────────────────────────────
 -- Enable for all tables; allow anon for now (add auth later)
 alter table users              enable row level security;
@@ -381,6 +401,7 @@ alter table categories         enable row level security;
 alter table sharing_rules      enable row level security;
 alter table account_balance_history enable row level security;
 alter table investment_year_performance enable row level security;
+alter table investment_flows   enable row level security;
 
 -- Permissive policies (open for now — tighten when auth is added)
 create policy "allow all" on users              for all using (true) with check (true);
@@ -394,3 +415,4 @@ create policy "allow all" on categories         for all using (true) with check 
 create policy "allow all" on sharing_rules      for all using (true) with check (true);
 create policy "allow all" on account_balance_history for all using (true) with check (true);
 create policy "allow all" on investment_year_performance for all using (true) with check (true);
+create policy "allow all" on investment_flows   for all using (true) with check (true);

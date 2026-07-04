@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { fetchAccounts, AccountRow } from '@/lib/db/accounts'
 import { fetchAccountBalanceHistory, AccountHistoryRow } from '@/lib/db/networth'
-import { fetchYearPerformance, YearPerformanceRow } from '@/lib/db/investments'
+import { fetchYearPerformance, fetchInvestmentFlows, YearPerformanceRow, InvestmentFlowRow } from '@/lib/db/investments'
 import {
-  buildValueSeries, computeYearlyTable, consolidateYearly, summarizeInvestments,
+  buildValueSeries, computeYearlyTable, consolidateYearly, summarizeInvestments, custodianOf,
   CustodianSeries, MonthValue, YearRow, InvestmentSummary,
 } from '@/investments/PerformanceEngine'
 import { monthRange } from '@/lib/format'
@@ -27,6 +27,7 @@ export function useInvestments(userId: string, month: string): InvestmentsData {
   const [accounts, setAccounts] = useState<AccountRow[]>([])
   const [history, setHistory]   = useState<AccountHistoryRow[]>([])
   const [seed, setSeed]         = useState<YearPerformanceRow[]>([])
+  const [flows, setFlows]       = useState<InvestmentFlowRow[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState<string | null>(null)
 
@@ -37,8 +38,9 @@ export function useInvestments(userId: string, month: string): InvestmentsData {
       fetchAccounts(userId),
       fetchAccountBalanceHistory(userId),
       fetchYearPerformance(userId),
+      fetchInvestmentFlows(userId),
     ])
-      .then(([acc, hist, s]) => { setAccounts(acc); setHistory(hist); setSeed(s) })
+      .then(([acc, hist, s, f]) => { setAccounts(acc); setHistory(hist); setSeed(s); setFlows(f) })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }, [userId])
@@ -46,7 +48,8 @@ export function useInvestments(userId: string, month: string): InvestmentsData {
   useEffect(() => { load() }, [load])
 
   const data = useMemo(() => {
-    const invIds = new Set(accounts.filter((a) => a.is_investment).map((a) => a.id))
+    const invAccounts = accounts.filter((a) => a.is_investment)
+    const invIds = new Set(invAccounts.map((a) => a.id))
     const invHistory = history.filter((r) => invIds.has(r.account_id))
 
     const start = invHistory.reduce(
@@ -55,13 +58,24 @@ export function useInvestments(userId: string, month: string): InvestmentsData {
     )
     const months = monthRange(start > month ? month : start, month)
 
+    // Aportes por corretora e mês (account → custodian).
+    const custodianByAccount = new Map(invAccounts.map((a) => [a.id, custodianOf(a)]))
+    const flowsByCustodian = new Map<string, Map<string, number>>()
+    for (const f of flows) {
+      const c = custodianByAccount.get(f.account_id)
+      if (!c) continue
+      if (!flowsByCustodian.has(c)) flowsByCustodian.set(c, new Map())
+      const m = flowsByCustodian.get(c)!
+      m.set(f.month, (m.get(f.month) ?? 0) + f.net_deposit)
+    }
+
     const { byCustodian, total } = buildValueSeries(invHistory, accounts, months)
-    const yearly = computeYearlyTable(seed, byCustodian)
+    const yearly = computeYearlyTable(seed, byCustodian, flowsByCustodian)
     const yearlyTotals = consolidateYearly(yearly)
     const summary = summarizeInvestments(yearlyTotals, total, month)
 
     return { byCustodian, total, yearly, yearlyTotals, summary, hasInvestmentAccounts: invIds.size > 0 }
-  }, [accounts, history, seed, month])
+  }, [accounts, history, seed, flows, month])
 
   return { ...data, loading, error, reload: load }
 }
