@@ -14,6 +14,7 @@
 import { ImportHandler, HandlerContext, NormalizedTransaction, RawRow, TransactionType } from '../types'
 import { parseCSV } from '../utils/csv'
 import { parseBrazilianDate, toCompetencyMonth } from '../utils/date'
+import { parseMoney } from '../utils/money'
 
 // Maps description keywords → transaction type
 // Order matters — first match wins
@@ -76,7 +77,7 @@ export class NubankAccountHandler implements ImportHandler {
       const identifier = row['Identificador']
       const rawValue = row['Valor']
       if (!identifier || !rawValue) continue
-      const value = parseFloat(rawValue.replace(',', '.'))
+      const value = parseMoney(rawValue)
       if (isNaN(value)) continue
       sumsByIdentifier.set(identifier, (sumsByIdentifier.get(identifier) ?? 0) + value)
     }
@@ -101,7 +102,7 @@ export class NubankAccountHandler implements ImportHandler {
       if (reversedIdentifiers.has(identifier)) continue
 
       const isoDate = parseBrazilianDate(rawDate)
-      const signedAmount = parseFloat(rawValue.replace(',', '.'))
+      const signedAmount = parseMoney(rawValue)
 
       if (isNaN(signedAmount)) continue
 

@@ -25,6 +25,7 @@
 import { ImportHandler, HandlerContext, NormalizedTransaction, RawRow } from '../types'
 import { parseCSV } from '../utils/csv'
 import { toCompetencyMonth } from '../utils/date'
+import { parseMoney } from '../utils/money'
 import { hash } from '../utils/hash'
 
 /**
@@ -79,10 +80,9 @@ export class NubankCreditHandler implements ImportHandler {
       const isoDate = rawDate.trim()
       if (!/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) continue
 
-      // Strip whitespace (Nubank writes negatives as "- 84,97") before
-      // converting the decimal comma to a dot.
-      const rawNum = rawAmount.trim().replace(/\s/g, '').replace(',', '.')
-      const amount = parseFloat(rawNum)
+      // Robust BR/US parse — handles the thousands separator ("1.401,07") and
+      // Nubank's spaced negatives ("- 84,97").
+      const amount = parseMoney(rawAmount)
       if (isNaN(amount) || amount === 0) continue
 
       const isCredit = amount < 0

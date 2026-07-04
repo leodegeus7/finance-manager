@@ -15,6 +15,7 @@
 import { ImportHandler, HandlerContext, NormalizedTransaction, RawRow } from '../types'
 import { parseCSV } from '../utils/csv'
 import { parseBrazilianDate, toCompetencyMonth } from '../utils/date'
+import { parseMoney } from '../utils/money'
 import { hash } from '../utils/hash'
 
 interface ParsedInstallment {
@@ -109,9 +110,9 @@ export class C6CreditHandler implements ImportHandler {
 
       const isoDate = parseBrazilianDate(rawDate)
 
-      // Parse amount — new format uses BRL value; negative = payment or refund
-      const rawNum = rawAmount.replace(',', '.').replace(/[^\d.-]/g, '')
-      const amount = parseFloat(rawNum)
+      // Parse amount (robust BR/US, handles thousands) — new format uses BRL
+      // value; negative = payment or refund
+      const amount = parseMoney(rawAmount)
 
       // Skip zero-value rows
       if (isNaN(amount) || amount === 0) continue
