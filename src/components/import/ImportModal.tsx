@@ -11,7 +11,9 @@ import { NormalizedTransaction } from '@/import/types'
 import { InterCreditPDFHandler } from '@/import/handlers/InterCreditPDFHandler'
 import { C6CreditPDFHandler } from '@/import/handlers/C6CreditPDFHandler'
 import { extractPDFText, isPasswordError } from '@/import/utils/pdf'
+import { isNubankStatement, parseNubankStatement, NubankStatementInfo } from '@/import/utils/nubankStatementBalance'
 import { upsertTransactions, ImportClassification } from '@/lib/db/import'
+import { upsertAccountBalance } from '@/lib/db/networth'
 import { AccountRow, CardRow } from '@/lib/db/accounts'
 import { CategoryRow, filterCategories } from '@/lib/db/categories'
 import { SplitParticipant } from '@/engine/types'
@@ -29,7 +31,7 @@ interface Props {
   onSuccess: (month?: string) => void  // month = primary competency_month of imported txs
 }
 
-type Step = 'idle' | 'detecting' | 'password' | 'preview' | 'saving' | 'done' | 'error'
+type Step = 'idle' | 'detecting' | 'password' | 'preview' | 'balance' | 'saving' | 'done' | 'error'
 
 const SOURCE_LABELS: Record<string, string> = {
   nubank_account:    'Nubank Conta',
@@ -111,12 +113,16 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
   const [statementMonth, setStatementMonth]     = useState('')
   const [normalizedTxs, setNormalizedTxs]       = useState<NormalizedTransaction[]>([])
   const [drafts, setDrafts]               = useState<Map<string, Draft>>(new Map())
-  const [result, setResult]               = useState<{ inserted: number; skipped: number; month?: string } | null>(null)
+  const [result, setResult]               = useState<{ inserted: number; skipped: number; month?: string; kind?: 'balance' } | null>(null)
   const [validationWarning, setValidationWarning] = useState('')
   const [errorMsg, setErrorMsg]           = useState('')
   const [saving, setSaving]               = useState(false)
   const [pdfPassword, setPdfPassword]     = useState('')
   const [passwordError, setPasswordError] = useState('')
+  // Nubank account statement PDF ("extrato") — just updates a month's balance,
+  // no transactions to review/save.
+  const [balanceInfo, setBalanceInfo]     = useState<NubankStatementInfo | null>(null)
+  const [balanceMonth, setBalanceMonth]   = useState('')
 
   const handleFile = useCallback(async (f: File, password?: string) => {
     setFile(f)
@@ -143,6 +149,25 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
         content = await f.text()
       }
       setExtractedText(content)
+
+      // Nubank account statement ("extrato") — this file has no transactions
+      // to review, it just reports the closing balance for a period. Short-
+      // circuit into a dedicated confirmation step instead of the transaction
+      // pipeline (which has no handler for this format).
+      if (f.name.toLowerCase().endsWith('.pdf') && isNubankStatement(f.name, content)) {
+        const stmt = parseNubankStatement(f.name, content)
+        if (stmt) {
+          setBalanceInfo(stmt)
+          setBalanceMonth(stmt.month ?? guessStatementMonth(f.name))
+          const guessedAcc =
+            accounts.find((a) => a.bank === 'nubank' && !/rdb|cofrinho/i.test(a.name)) ??
+            accounts.find((a) => a.bank === 'nubank') ??
+            accounts[0]
+          setSelectedAccountId(guessedAcc?.id ?? '')
+          setStep('balance')
+          return
+        }
+      }
 
       const { handler } = resolveHandler(f.name, content)
       const isCard    = isCardHandler(handler.source)
@@ -401,6 +426,21 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
     }
   }
 
+  async function handleSaveBalance() {
+    if (!balanceInfo || !selectedAccountId || !balanceMonth) return
+    setSaving(true)
+    try {
+      await upsertAccountBalance(selectedAccountId, balanceMonth, balanceInfo.balance)
+      setResult({ inserted: 1, skipped: 0, month: balanceMonth, kind: 'balance' })
+      setStep('done')
+    } catch (e) {
+      setErrorMsg(String(e))
+      setStep('error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     const f = e.dataTransfer.files[0]
@@ -420,7 +460,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
         {/* Header */}
         <div className="flex items-center justify-between shrink-0">
           <h2 className="text-base font-semibold text-gray-900">
-            {isPreview ? 'Conferir e classificar' : 'Importar extrato'}
+            {isPreview ? 'Conferir e classificar' : step === 'balance' ? 'Atualizar saldo' : 'Importar extrato'}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
         </div>
@@ -438,7 +478,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
             ) : (
               <>
                 <p className="text-sm font-medium text-gray-600">Arraste ou clique para selecionar</p>
-                <p className="text-xs text-gray-400 mt-1">CSV · Nubank, C6 · PDF · Inter, C6 (fatura c/ senha)</p>
+                <p className="text-xs text-gray-400 mt-1">CSV · Nubank, C6 · PDF · Inter, C6 (fatura c/ senha), Nubank (extrato)</p>
               </>
             )}
             <input ref={fileRef} type="file" accept=".csv,.pdf" className="hidden"
@@ -475,6 +515,51 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
               </button>
             </div>
           </form>
+        )}
+
+        {/* ── balance (extrato Nubank — atualiza saldo, não importa transações) ── */}
+        {step === 'balance' && balanceInfo && (
+          <div className="space-y-4">
+            <div className="bg-blue-50 rounded-xl p-4 space-y-1">
+              <p className="text-sm font-medium text-blue-900">Extrato de saldo Nubank detectado</p>
+              <p className="text-xs text-blue-700">
+                Esse arquivo não tem transações para revisar — só atualiza o saldo da conta no mês.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Conta</label>
+                <select className="w-full text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none"
+                  value={selectedAccountId} onChange={(e) => setSelectedAccountId(e.target.value)}>
+                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Mês</label>
+                <select className="w-full text-sm border border-gray-200 rounded-xl px-3 py-1.5 focus:outline-none"
+                  value={balanceMonth} onChange={(e) => setBalanceMonth(e.target.value)}>
+                  {recentMonths().map((m) => <option key={m} value={m}>{formatMonth(m)}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl px-4 py-3 flex items-center justify-between">
+              <span className="text-sm text-gray-500">Saldo final do período</span>
+              <span className="text-lg font-bold text-gray-900 tabular-nums">{formatCurrency(balanceInfo.balance)}</span>
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={onClose}
+                className="flex-1 border border-gray-200 text-sm font-medium py-2.5 rounded-xl hover:bg-gray-50 transition-colors">
+                Cancelar
+              </button>
+              <button onClick={handleSaveBalance} disabled={saving || !selectedAccountId}
+                className="flex-1 bg-gray-900 text-white text-sm font-medium py-2.5 rounded-xl hover:bg-gray-700 transition-colors disabled:opacity-40">
+                {saving ? 'Salvando...' : 'Salvar saldo'}
+              </button>
+            </div>
+          </div>
         )}
 
         {/* ── preview ── */}
@@ -745,15 +830,19 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
           <>
             <div className="bg-green-50 rounded-xl p-4 space-y-1">
               <p className="text-sm font-semibold text-green-800">
-                {result.inserted} transaç{result.inserted !== 1 ? 'ões' : 'ão'} salva{result.inserted !== 1 ? 's' : ''}
+                {result.kind === 'balance'
+                  ? 'Saldo atualizado com sucesso'
+                  : `${result.inserted} transaç${result.inserted !== 1 ? 'ões' : 'ão'} salva${result.inserted !== 1 ? 's' : ''}`}
               </p>
               {result.skipped > 0 && (
                 <p className="text-xs text-green-600">{result.skipped} já existiam e foram ignoradas</p>
               )}
             </div>
-            <button onClick={() => onSuccess(result.month)}
+            <button onClick={() => onSuccess(result.kind === 'balance' ? undefined : result.month)}
               className="w-full bg-gray-900 text-white text-sm font-medium py-2.5 rounded-xl hover:bg-gray-700 transition-colors">
-              {result.month ? `Ver transações de ${formatMonth(result.month)}` : 'Fechar'}
+              {result.kind === 'balance'
+                ? 'Concluir'
+                : result.month ? `Ver transações de ${formatMonth(result.month)}` : 'Fechar'}
             </button>
           </>
         )}

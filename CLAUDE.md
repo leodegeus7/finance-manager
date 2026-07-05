@@ -301,6 +301,14 @@ Handlers em `src/import/handlers/` (cada um implementa `identify`/`parse`/`norma
 - `InterCreditPDFHandler` — fatura Inter (PDF, via pdfjs)
 - `MuriloTransacoesHandler` — planilha de transações do Murilo
 
+**Extrato de saldo Nubank (não é um handler de transações):** [`nubankStatementBalance.ts`](src/import/utils/nubankStatementBalance.ts)
+reconhece o PDF do extrato de conta Nubank (`NU_<id>_<DDMMMYYYY>_<DDMMMYYYY>.pdf`) e extrai só o
+**"Saldo final do período"** — esse arquivo não tem transações pra revisar, então o `ImportModal`
+desvia pra um mini-fluxo próprio (`step === 'balance'`) que atualiza `account_balance_history`
+direto (`upsertAccountBalance`), com conta/mês pré-selecionados e editáveis. Note: a label "Saldo
+final do período" aparece 2x no texto extraído (pdfjs agrupa por linha) — o regex casa a 2ª
+ocorrência (label + número direto, sem "R$"), que é a inequívoca.
+
 ---
 
 ## 7. Convenções & pegadinhas
