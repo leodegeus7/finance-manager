@@ -24,6 +24,12 @@ const TYPE_RULES: Array<{ pattern: RegExp; type: TransactionType }> = [
   // card issuers) is the boleto used to pay the credit card invoice —
   // treat it the same as a "fatura" payment, not a generic bill.
   { pattern: /boleto.*(banco c6|c6 bank|c6 s\.?a\.?|banco inter\b|nu pagamentos|nubank)/i, type: 'credit_card_payment' },
+  // Outgoing Pix/TED to a card issuer's INSTITUTIONAL CNPJ = paying the card
+  // invoice via Pix QR Code (ex.: "Transferência enviada pelo Pix - C6 BANK -
+  // 31.872.495/0001-72"). Matched by CNPJ so a Pix to a *person* who happens to
+  // bank at C6/Nubank/Inter is NOT misread as a card payment.
+  //   C6 31.872.495/0001-72 · Nu Pagamentos 18.236.120/0001-58 · Inter 00.416.968/0001-01
+  { pattern: /enviad[ao].*(31\.?872\.?495\/?0001|18\.?236\.?120\/?0001|00\.?416\.?968\/?0001)/i, type: 'credit_card_payment' },
   { pattern: /aplica[çc][aã]o.*(rdb|cdb|tesouro|fundo)/i, type: 'investment_contribution' },
   { pattern: /resgate.*(rdb|cdb|tesouro|fundo)/i,          type: 'investment_withdrawal' },
   { pattern: /pix enviado|pix saída/i, type: 'expense' },
