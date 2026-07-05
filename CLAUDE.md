@@ -269,7 +269,12 @@ acerto (quem deve quanto). Só `context === 'personal'` entra (profissional é e
 
 ### Checklist — [`pages/MonthlyChecklist.tsx`](src/app/pages/MonthlyChecklist.tsx) (`/checklist`)
 Status mensal de tarefas (ex.: lançar saldo das contas via `BalanceEntryModal` →
-`account_balance_history`). Últimos 6 meses.
+`account_balance_history`). Últimos 6 meses. **Balanço é por conta, não geral:**
+`fetchMonthlyStatus` (`lib/db/monthlyStatus.ts`) reaproveita `computeLatestAccountBalances`/
+`isAccountActive` (mesmo critério de "ativa" do `useNetWorth`) e só marca "Feito" quando **toda**
+conta ativa (comum ou investimento — ambas usam `account_balance_history`) tem saldo lançado
+**naquele mês exato** (não um saldo carregado de mês anterior). O badge mostra "N pendentes" e
+expande (▼) listando quais contas faltam.
 
 ---
 

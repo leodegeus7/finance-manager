@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { formatMonth } from '@/lib/format'
@@ -18,10 +18,10 @@ function recentMonths(n = 6): string[] {
   return months
 }
 
-function StatusBadge({ done, onClick }: { done: boolean; onClick?: () => void }) {
+function StatusBadge({ done, label, onClick }: { done: boolean; label?: string; onClick?: () => void }) {
   const badge = done
-    ? <Badge variant="green">Feito</Badge>
-    : <Badge variant="red">Pendente</Badge>
+    ? <Badge variant="green">{label ?? 'Feito'}</Badge>
+    : <Badge variant="red">{label ?? 'Pendente'}</Badge>
 
   if (!onClick) return badge
 
@@ -37,6 +37,7 @@ export function MonthlyChecklist() {
   const months = useMemo(() => recentMonths(6), [])
   const { statuses, loading, error, refetch } = useMonthlyStatus(userId, months)
   const [balanceMonth, setBalanceMonth] = useState<string | null>(null)
+  const [expandedMonth, setExpandedMonth] = useState<string | null>(null)
 
   if (error) return (
     <div className="p-8 text-red-600 text-sm">Erro ao carregar status: {error}</div>
@@ -64,16 +65,54 @@ export function MonthlyChecklist() {
               </tr>
             </thead>
             <tbody>
-              {statuses.map((s) => (
-                <tr key={s.month} className="border-t border-gray-100">
-                  <td className="py-3 font-medium text-gray-900">{formatMonth(s.month)}</td>
-                  <td className="py-3"><StatusBadge done={s.hasCard} /></td>
-                  <td className="py-3"><StatusBadge done={s.hasAccount} /></td>
-                  <td className="py-3">
-                    <StatusBadge done={s.hasBalance} onClick={() => setBalanceMonth(s.month)} />
-                  </td>
-                </tr>
-              ))}
+              {statuses.map((s) => {
+                const pendingCount = s.missingBalanceAccounts.length
+                const expanded = expandedMonth === s.month
+
+                return (
+                  <Fragment key={s.month}>
+                    <tr className="border-t border-gray-100">
+                      <td className="py-3 font-medium text-gray-900">{formatMonth(s.month)}</td>
+                      <td className="py-3"><StatusBadge done={s.hasCard} /></td>
+                      <td className="py-3"><StatusBadge done={s.hasAccount} /></td>
+                      <td className="py-3">
+                        <div className="flex items-center gap-2">
+                          <StatusBadge
+                            done={s.hasBalance}
+                            label={s.hasBalance ? 'Feito' : `${pendingCount} pendente${pendingCount !== 1 ? 's' : ''}`}
+                            onClick={() => setBalanceMonth(s.month)}
+                          />
+                          {pendingCount > 0 && (
+                            <button
+                              onClick={() => setExpandedMonth(expanded ? null : s.month)}
+                              className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+                              title="Ver quais contas faltam"
+                            >
+                              {expanded ? '▲' : '▼'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                    {expanded && pendingCount > 0 && (
+                      <tr className="bg-gray-50/60">
+                        <td colSpan={4} className="px-3 py-2.5">
+                          <p className="text-xs text-gray-400 mb-1.5">
+                            Contas sem saldo lançado em {formatMonth(s.month)}:
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {s.missingBalanceAccounts.map((a) => (
+                              <span key={a.id} className="text-xs bg-white border border-gray-200 rounded-lg px-2 py-1 text-gray-600">
+                                {a.name}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         )}
