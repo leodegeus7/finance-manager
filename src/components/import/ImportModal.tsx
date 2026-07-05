@@ -60,6 +60,12 @@ function guessAccount(source: string, accounts: AccountRow[]): AccountRow | unde
   return accounts[0]
 }
 
+/** For a detected card-invoice payment, which card it likely settles. */
+function guessPaymentCard(tx: NormalizedTransaction, cards: CardRow[]): string {
+  if (tx.type !== 'credit_card_payment') return ''
+  return cards.find((c) => c.bank === tx.suggested_card_bank)?.id ?? ''
+}
+
 function recentMonths(n = 18): string[] {
   const months: string[] = []
   const d = new Date()
@@ -79,6 +85,11 @@ interface Draft {
   to_account_id: string
   notes: string
   is_fixed: boolean
+  // Only meaningful when the handler detected tx.type === 'credit_card_payment'.
+  // is_card_payment defaults to true (handler's guess); the user can uncheck
+  // it if this is actually a regular transaction, not a card-invoice payment.
+  is_card_payment: boolean
+  card_payment_card_id: string
 }
 
 function txIsTransfer(tx: NormalizedTransaction) {
@@ -212,6 +223,8 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
           to_account_id: tx.suggested_to_account_id ?? '',
           notes:         '',
           is_fixed:      false,
+          is_card_payment:      tx.type === 'credit_card_payment',
+          card_payment_card_id: guessPaymentCard(tx, cards),
         })
       }
       setDrafts(initDrafts)
@@ -250,6 +263,8 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
             to_account_id: tx.suggested_to_account_id ?? '',
             notes:         '',
             is_fixed:      false,
+            is_card_payment:      tx.type === 'credit_card_payment',
+            card_payment_card_id: guessPaymentCard(tx, cards),
           })
         }
         return next
@@ -341,6 +356,9 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
           to_account_id: d.to_account_id || undefined,
           notes: d.notes.trim() || null,
           fixed_type: d.is_fixed ? 'fixed' : null,
+          is_card_payment: d.is_card_payment,
+          card_payment_card_id: d.card_payment_card_id || undefined,
+          card_payment_card_name: cards.find((c) => c.id === d.card_payment_card_id)?.name,
         })
       }
 
@@ -546,6 +564,8 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                 const transfer = draft.is_transfer
                 const isCardTx = needsCard || !!tx.credit_card_id
                 const cats = filterCategories(categories, tx.direction)
+                const isDetectedCardPayment = tx.type === 'credit_card_payment'
+                const paymentCardName = cards.find((c) => c.id === draft.card_payment_card_id)?.name
 
                 return (
                   <div key={tx.external_id} className="px-3 py-2.5 space-y-1.5 hover:bg-gray-50">
@@ -560,8 +580,10 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                               {tx.installment_current}/{tx.installment_total}
                             </span>
                           )}
-                          {tx.type === 'credit_card_payment' && (
-                            <span className="text-xs px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-400 shrink-0">pag. fatura</span>
+                          {isDetectedCardPayment && draft.is_card_payment && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 font-medium shrink-0">
+                              💳 fatura{paymentCardName ? ` · ${paymentCardName}` : ''}
+                            </span>
                           )}
                         </div>
                       </div>
@@ -579,8 +601,44 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                       onChange={(e) => updateDraft(tx.external_id, { notes: e.target.value })}
                     />
 
-                    {/* Row 2: transfer toggle + classification */}
-                    {tx.type !== 'credit_card_payment' && (
+                    {/* Row 2a: card-payment confirmation — só para transações que o
+                        handler detectou como pagamento de fatura (ex.: Pix pro
+                        CNPJ do banco emissor). Some se o usuário desmarcar. */}
+                    {isDetectedCardPayment && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => updateDraft(tx.external_id, { is_card_payment: !draft.is_card_payment })}
+                          className={`text-xs px-2 py-1 rounded-lg border transition-colors font-medium shrink-0 ${
+                            draft.is_card_payment
+                              ? 'bg-blue-50 text-blue-700 border-blue-200'
+                              : 'bg-white text-gray-400 border-gray-200 hover:border-gray-300'
+                          }`}
+                          title="Pagamentos de fatura não entram no fluxo de caixa (já contados via as compras do cartão)"
+                        >
+                          💳 Pagamento de fatura
+                        </button>
+                        {draft.is_card_payment ? (
+                          cards.length > 0 && (
+                            <select
+                              className={selCls + ' flex-1 min-w-0'}
+                              value={draft.card_payment_card_id}
+                              onChange={(e) => updateDraft(tx.external_id, { card_payment_card_id: e.target.value })}
+                            >
+                              <option value="">Qual cartão está sendo pago?</option>
+                              {cards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                          )
+                        ) : (
+                          <span className="text-xs text-gray-400">
+                            Não é pagamento de fatura — classifique como uma transação normal abaixo
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Row 2b: transfer toggle + classification — para transações
+                        normais, ou uma detectada como pagamento que o usuário desmarcou */}
+                    {(!isDetectedCardPayment || !draft.is_card_payment) && (
                       <div className="flex flex-wrap items-center gap-2">
                         {/* Transfer toggle — não aplicável a transações de cartão */}
                         {!isCardTx && (

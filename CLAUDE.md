@@ -282,7 +282,14 @@ Para **PDF**, o `HandlerRegistry` passa as **linhas do texto extraído** ao `ide
 arquivo costuma não ter dica do banco), então handlers de PDF podem se identificar por conteúdo.
 
 Handlers em `src/import/handlers/` (cada um implementa `identify`/`parse`/`normalize`):
-- `NubankAccountHandler` — extrato de conta Nubank (CSV)
+- `NubankAccountHandler` — extrato de conta Nubank (CSV). Detecta pagamento de fatura de cartão
+  (`credit_card_payment`) por palavra-chave ("fatura"/"boleto") **e** por Pix/TED para o **CNPJ
+  institucional** do banco emissor (C6/Nu/Inter — não pelo nome, pra não confundir com Pix pra uma
+  pessoa que só é cliente do banco). O [`ImportModal`](src/components/import/ImportModal.tsx)
+  mostra um toggle "💳 Pagamento de fatura" + seletor de cartão nessas linhas — o usuário pode
+  desmarcar se a detecção errar, e a transação volta a ser classificada normalmente (categoria/
+  split). O cartão escolhido vai só para `notes` (nunca para `credit_card_id`, que significaria
+  "item da fatura" e misturaria o pagamento com as compras no agrupamento por cartão).
 - `NubankCreditHandler` — fatura de cartão Nubank (CSV)
 - `C6CreditHandler` — fatura C6 (CSV, com parcelas)
 - `C6CreditPDFHandler` — fatura C6 (PDF **protegido por senha**). Identifica por conteúdo

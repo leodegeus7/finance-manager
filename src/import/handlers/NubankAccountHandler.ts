@@ -51,6 +51,18 @@ function detectType(description: string, signedAmount: number): TransactionType 
   return signedAmount >= 0 ? 'income' : 'expense'
 }
 
+/**
+ * For a detected credit_card_payment row, guesses WHICH card issuer it likely
+ * settles (matches CardRow.bank) — just a hint for the import UI's "which
+ * card?" selector, the user can always change it.
+ */
+function guessCardBank(description: string): string | undefined {
+  if (/31\.?872\.?495|c6\s*bank|banco c6\b|c6\s*carbon/i.test(description)) return 'c6'
+  if (/18\.?236\.?120|nu\s*pagamentos|nubank/i.test(description))           return 'nubank'
+  if (/00\.?416\.?968|banco inter\b/i.test(description))                    return 'inter'
+  return undefined
+}
+
 export class NubankAccountHandler implements ImportHandler {
   readonly source = 'nubank_account'
 
@@ -132,6 +144,11 @@ export class NubankAccountHandler implements ImportHandler {
 
         context: ctx.userId ? 'personal' : 'personal', // default personal
         scope: 'individual',                            // default individual
+
+        // Hint for the import UI's "which card does this settle?" selector —
+        // the user reviews/confirms it and can also un-mark this row entirely
+        // if it's not really a card payment (see ImportModal).
+        ...(type === 'credit_card_payment' ? { suggested_card_bank: guessCardBank(description) } : {}),
       })
     }
 

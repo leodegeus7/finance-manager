@@ -66,6 +66,12 @@ export interface NormalizedTransaction {
   suggested_context?: TransactionContext
   suggested_splits?: SplitParticipant[] | null
   suggested_to_account_id?: string | null
+  // For type === 'credit_card_payment': which card issuer this Pix/boleto
+  // seems to settle (matches CardRow.bank), so the import UI can preselect
+  // it in the "which card?" dropdown. Purely a hint — never persisted as
+  // transactions.credit_card_id (that column means "this row is an invoice
+  // line item", which a payment is not).
+  suggested_card_bank?: string
 }
 
 // Handler interface — every handler MUST implement these three

@@ -17,6 +17,15 @@ export interface ImportClassification {
   to_account_id?: string     // destination account for transfers
   notes?: string | null      // custom description set by the user during classification
   fixed_type?: 'fixed' | 'variable' | 'occasional' | null
+  // For a tx the handler auto-detected as type 'credit_card_payment': whether
+  // the user kept it as a payment (default true) or unmarked it — in which
+  // case it's saved as a normal expense with category/splits applying, same
+  // as any other transaction. card_payment_card_id is never persisted as
+  // credit_card_id (that column means "invoice line item", not "settles
+  // this card") — it's folded into `notes` purely for readability.
+  is_card_payment?: boolean
+  card_payment_card_id?: string
+  card_payment_card_name?: string
 }
 
 /**
@@ -35,7 +44,23 @@ export async function upsertTransactions(
   const rows = transactions.map((tx) => {
     const clf        = classifications?.get(tx.external_id)
     const isTransfer = clf?.is_transfer ?? (tx.type === 'transfer')
-    const splits     = !isTransfer && clf?.splits && clf.splits.length > 1 ? clf.splits : null
+
+    // Handler flagged this as a card-invoice payment — the user can un-mark it
+    // in the import review, in which case it's saved as a normal expense.
+    const wasDetectedAsCardPayment = tx.type === 'credit_card_payment'
+    const keepAsCardPayment = wasDetectedAsCardPayment && (clf?.is_card_payment ?? true)
+    const droppedCardPayment = wasDetectedAsCardPayment && !keepAsCardPayment
+
+    const finalType = isTransfer ? 'transfer' : keepAsCardPayment ? 'credit_card_payment' : droppedCardPayment ? 'expense' : tx.type
+    const applyClassification = !isTransfer && !keepAsCardPayment
+    const splits = applyClassification && clf?.splits && clf.splits.length > 1 ? clf.splits : null
+
+    // Fold "which card" into notes for readability (never into credit_card_id
+    // — that column means "invoice line item", which a payment is not, and
+    // would wrongly group this row under the card's fatura in the UI).
+    const notes = keepAsCardPayment && !clf?.notes && clf?.card_payment_card_name
+      ? `Pagamento fatura — ${clf.card_payment_card_name}`
+      : clf?.notes || null
 
     return {
       user_id:             userId,
@@ -47,20 +72,20 @@ export async function upsertTransactions(
       amount:              tx.amount,
       signed_amount:       tx.signed_amount,
       direction:           tx.direction,
-      type:                isTransfer ? 'transfer' : tx.type,
+      type:                finalType,
       description:         tx.description,
       context:             clf?.context ?? tx.context,
       scope:               splits ? 'shared' : tx.scope,
       splits:              splits,
-      category_id:         isTransfer ? null : (clf?.category_id || null),
+      category_id:         applyClassification ? (clf?.category_id || null) : null,
       to_account_id:       isTransfer ? (clf?.to_account_id ?? null) : null,
       is_essential:        false,
-      fixed_type:          isTransfer ? null : (clf?.fixed_type ?? null),
+      fixed_type:          applyClassification ? (clf?.fixed_type ?? null) : null,
       installment_current: tx.installment_current ?? null,
       installment_total:   tx.installment_total ?? null,
       external_id:         tx.external_id,
       source:              tx.source,
-      notes:               clf?.notes || null,
+      notes,
     }
   })
 
