@@ -305,7 +305,9 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
       if (t.external_id === externalId) return false
       if (t.description !== tx.description || t.direction !== tx.direction) return false
       const d = drafts.get(t.external_id)
-      return !!d && !d.is_transfer
+      // Only apply to transactions still uncategorized — don't overwrite ones
+      // already classified (by the user or by the handler's suggestion).
+      return !!d && !d.is_transfer && !d.category_id
     })
 
     if (matches.length === 0) {
