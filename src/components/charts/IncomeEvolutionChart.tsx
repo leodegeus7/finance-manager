@@ -100,13 +100,18 @@ const HISTORICAL: { month: string; salario: number; freelancer: number; fazenda:
 
 const LIVE_START = '2026-04-01'
 
-// Category name matching (case-insensitive substrings)
-function classifyCategory(name?: string): 'salario' | 'freelancer' | 'fazenda' | null {
-  if (!name) return null
-  const n = name.toLowerCase()
-  if (n.includes('fazenda')) return 'fazenda'
-  if (n.includes('freelancer') || n.includes('freelance')) return 'freelancer'
-  if (n.includes('salario') || n.includes('salário')) return 'salario'
+// Category name matching (case-insensitive substrings).
+// Checks the leaf category first (e.g. "Fazenda", "Freelancer" — each has its
+// own line), then falls back to the PARENT category name. This matters
+// because "Salário" income is now split into subcategories (Empresa, Startup
+// Mensal, ...) whose own leaf name doesn't mention "salário" at all — without
+// the parent fallback those transactions are silently dropped from every line.
+function classifyCategory(name?: string, parentName?: string): 'salario' | 'freelancer' | 'fazenda' | null {
+  const leaf = name?.toLowerCase() ?? ''
+  const parent = parentName?.toLowerCase() ?? ''
+  if (leaf.includes('fazenda') || parent.includes('fazenda')) return 'fazenda'
+  if (leaf.includes('freelancer') || leaf.includes('freelance') || parent.includes('freelancer')) return 'freelancer'
+  if (leaf.includes('salario') || leaf.includes('salário') || parent.includes('salario') || parent.includes('salário')) return 'salario'
   return null
 }
 
@@ -122,7 +127,7 @@ export function IncomeEvolutionChart({ liveTxs }: Props) {
     if (tx.direction !== 'income') continue
     const m = tx.competency_month ?? tx.date.slice(0, 7) + '-01'
     if (m < LIVE_START) continue
-    const type = classifyCategory(tx.category_name)
+    const type = classifyCategory(tx.category_name, tx.parent_category_name)
     if (!type) continue
 
     let entry = liveByMonth.get(m)

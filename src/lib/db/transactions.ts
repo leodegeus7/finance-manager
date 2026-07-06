@@ -44,7 +44,10 @@ function toTransaction(row: Row): Transaction {
     description:          row.description as string,
     category_id:          row.category_id as string | undefined,
     category_name:        (row.categories as Row | null)?.name as string | undefined,
-    parent_category_name: (row.parent as Row | null)?.name as string | undefined,
+    // `parent` is nested INSIDE `categories` in the query's join alias
+    // (`categories:category_id(..., parent:parent_id(...))`), not a top-level
+    // field on the row — reading row.parent directly always returned undefined.
+    parent_category_name: ((row.categories as Row | null)?.parent as Row | null)?.name as string | undefined,
     context:              row.context as Transaction['context'],
     scope:                row.scope as Transaction['scope'],
     splits:               row.splits as SplitParticipant[] | undefined,
