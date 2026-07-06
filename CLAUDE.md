@@ -174,7 +174,10 @@ calcula quanto cada um deve ao pagador. Usado na tela Patrimônio (`OwedSummary`
 `computeCardInvoiceSeries(txs, months)` → total da fatura por mês, separando parcelado de normal,
 **e projetando parcelas futuras** ainda não importadas. Cuidado embutido: só projeta a partir da
 parcela mais recente de cada série e só em meses **além** do último mês com dado real, para não
-duplicar com faturas futuras já importadas (`projected: true` marca meses estimados).
+duplicar com faturas futuras já importadas (`projected: true` marca meses estimados). A série é
+identificada por `descrição + installment_total` — **nunca pelo valor**, porque parcelas reais da
+mesma compra podem ter valor levemente diferente mês a mês (juros/câmbio); incluir o valor na
+chave faz cada parcela virar sua própria "série" e projetar duplicatas com o valor errado.
 
 ### `couple/CoupleEngine.ts` — análise do casal
 Só despesas `personal`, `shared`, contáveis E realmente divididas entre Leo e Murilo

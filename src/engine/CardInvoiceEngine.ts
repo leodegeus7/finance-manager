@@ -66,19 +66,23 @@ export function computeCardInvoiceSeries(transactions: Transaction[], months: st
   }
 
   // A "parcelamento" series spans multiple real transactions — one per
-  // statement month — sharing the same description/total/amount. Only the
-  // most recent known installment of each series should be used to project
-  // the remaining future installments; otherwise every past installment of
-  // the same purchase would independently project the same future months,
-  // duplicating them.
-  const seriesKey = (tx: Transaction, signed: number) =>
-    `${tx.description}__${tx.installment_total}__${signed}`
+  // statement month — sharing the same description/total. Only the most
+  // recent known installment of each series should be used to project the
+  // remaining future installments; otherwise every past installment of the
+  // same purchase would independently project the same future months,
+  // duplicating them. Deliberately does NOT key by amount: real installments
+  // of the same purchase can have slightly different amounts month to month
+  // (fees, exchange rate on international charges) — keying by amount would
+  // treat each one as its own "series", each independently (and wrongly)
+  // projecting a duplicate of the next installment using its own, possibly
+  // stale, amount.
+  const seriesKey = (tx: Transaction) =>
+    `${tx.description}__${tx.installment_total}`
 
   const latestBySeries = new Map<string, Transaction>()
   for (const tx of transactions) {
     if (!tx.installment_total || tx.installment_total <= 1 || !tx.installment_current) continue
-    const signed = tx.direction === 'expense' ? tx.amount : -tx.amount
-    const key = seriesKey(tx, signed)
+    const key = seriesKey(tx)
     const current = latestBySeries.get(key)
     if (!current || (tx.installment_current > (current.installment_current ?? 0))) {
       latestBySeries.set(key, tx)
@@ -109,7 +113,7 @@ export function computeCardInvoiceSeries(transactions: Transaction[], months: st
     if (
       tx.installment_current && tx.installment_total &&
       tx.installment_current < tx.installment_total &&
-      latestBySeries.get(seriesKey(tx, signed)) === tx
+      latestBySeries.get(seriesKey(tx)) === tx
     ) {
       for (let k = tx.installment_current + 1; k <= tx.installment_total; k++) {
         const futureMonth = addMonths(month, k - tx.installment_current)
