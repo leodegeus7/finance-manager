@@ -309,6 +309,30 @@ Handlers em `src/import/handlers/` (cada um implementa `identify`/`parse`/`norma
 - `InterCreditPDFHandler` — fatura Inter (PDF, via pdfjs)
 - `MuriloTransacoesHandler` — planilha de transações do Murilo
 
+### Import via CLI / agente
+
+Para importar arquivos fora da UI (ex.: recebidos pelo Telegram), use:
+
+```bash
+npm run import:file -- --file /tmp/arquivo.csv --user leo
+```
+
+O comando faz **dry-run por padrão**: detecta o handler, resolve conta/cartão por banco,
+normaliza as transações, consulta duplicadas no Supabase e mostra uma prévia. Nada é gravado
+sem passar explicitamente:
+
+```bash
+npm run import:file -- --file /tmp/arquivo.csv --user leo --commit --confirm
+```
+
+Regras operacionais:
+- Sempre informe `--user leo` ou `--user murilo`; pergunte antes quando o arquivo vier por chat.
+- Para fatura de cartão, prefira informar `--month YYYY-MM-01`; se o mês só for inferido como
+  "mês atual", o script recusa commit sem `--allow-guessed-month`.
+- Para PDFs protegidos (ex.: C6), passe `--password`.
+- Use primeiro o dry-run e revise: tipo detectado, conta/cartão, novas vs existentes,
+  sem categoria e possíveis transferências/pagamentos. Só depois rode com `--commit --confirm`.
+
 **Extrato de saldo Nubank (não é um handler de transações):** [`nubankStatementBalance.ts`](src/import/utils/nubankStatementBalance.ts)
 reconhece o PDF do extrato de conta Nubank (`NU_<id>_<DDMMMYYYY>_<DDMMMYYYY>.pdf`) e extrai só o
 **"Saldo final do período"** — esse arquivo não tem transações pra revisar, então o `ImportModal`

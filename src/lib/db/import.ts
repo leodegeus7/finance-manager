@@ -28,6 +28,33 @@ export interface ImportClassification {
   card_payment_card_name?: string
 }
 
+type TransactionUpsertRow = {
+  credit_card_id: string | null
+  statement_month: string | null
+  type: string
+  description: string
+  source: string
+  external_id: string
+}
+
+function validateRowsForWrite(rows: TransactionUpsertRow[]): string[] {
+  const errors: string[] = []
+
+  rows.forEach((row, index) => {
+    const isInvoiceLine = row.statement_month !== null && row.type !== 'credit_card_payment'
+    if (isInvoiceLine && !row.credit_card_id) {
+      errors.push(
+        `row ${index + 1} (${row.source}/${row.external_id}) has statement_month but no credit_card_id: ${row.description}`,
+      )
+    }
+    if (row.type === 'credit_card_purchase' && !row.statement_month) {
+      errors.push(`row ${index + 1} (${row.source}/${row.external_id}) is credit_card_purchase without statement_month`)
+    }
+  })
+
+  return errors
+}
+
 /**
  * Upserts normalized transactions into Supabase.
  * Uses (external_id, source) as the conflict key — idempotent.
@@ -88,6 +115,12 @@ export async function upsertTransactions(
       notes,
     }
   })
+
+  const rowErrors = validateRowsForWrite(rows)
+  if (rowErrors.length) {
+    result.errors.push(...rowErrors)
+    return result
+  }
 
   // Upsert in batches of 100 to avoid request size limits
   const BATCH = 100

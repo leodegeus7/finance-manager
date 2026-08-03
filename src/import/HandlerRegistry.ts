@@ -9,6 +9,7 @@ import { NubankAccountHandler }      from './handlers/NubankAccountHandler'
 import { NubankCreditHandler }        from './handlers/NubankCreditHandler'
 import { C6CreditHandler }            from './handlers/C6CreditHandler'
 import { C6CreditPDFHandler }         from './handlers/C6CreditPDFHandler'
+import { InterAccountHandler }        from './handlers/InterAccountHandler'
 import { InterCreditPDFHandler }      from './handlers/InterCreditPDFHandler'
 import { MuriloTransacoesHandler }    from './handlers/MuriloTransacoesHandler'
 import { parseCSV }                   from './utils/csv'
@@ -16,6 +17,7 @@ import { parseCSV }                   from './utils/csv'
 // Order matters for identify() resolution
 const HANDLERS: ImportHandler[] = [
   new InterCreditPDFHandler(),      // PDF — identified by 'inter' in filename
+  new InterAccountHandler(),        // Inter CSV Account
   new C6CreditPDFHandler(),         // PDF — identified by C6 markers in the text
   new MuriloTransacoesHandler(),    // Before other handlers — unique SeparaçãoLeo header
   new NubankCreditHandler(),        // CC before account (both have 'nubank' in name)

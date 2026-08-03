@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "import:file": "npx --yes tsx scripts/import-file.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",
