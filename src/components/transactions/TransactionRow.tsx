@@ -47,7 +47,12 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
   useEffect(() => {
     if (!editing) return
     function handleClick(e: MouseEvent) {
-      if (rowRef.current && !rowRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      // Ignora cliques em elementos que saíram do DOM neste mesmo evento
+      // (ex.: opção do dropdown de categoria, que fecha ao selecionar). Eles
+      // faziam parte do editor da linha — não são um clique realmente "fora".
+      if (!document.contains(target)) return
+      if (rowRef.current && !rowRef.current.contains(target)) {
         handleCancel()
       }
     }
