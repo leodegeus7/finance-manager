@@ -42,17 +42,30 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
   )
   const rowRef = useRef<HTMLDivElement>(null)
 
-  // Close on click outside
+  // Close on click outside — cancela a edição SEM salvar. Só o botão
+  // "Salvar" persiste; selecionar categoria/split e clicar fora descarta.
   useEffect(() => {
     if (!editing) return
     function handleClick(e: MouseEvent) {
       if (rowRef.current && !rowRef.current.contains(e.target as Node)) {
-        handleSave()
+        handleCancel()
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
-  }, [editing, categoryId, context, splits, notes, isFixed])
+  }, [editing])
+
+  // Descarta as mudanças em andamento e volta os campos ao estado persistido.
+  function handleCancel() {
+    setEditing(false)
+    setCategoryId(tx.category_id ?? '')
+    setContext(tx.context)
+    setSplits(tx.splits ?? null)
+    setToAccountId(tx.to_account_id ?? '')
+    setNotes(tx.notes ?? '')
+    setIsFixed(tx.fixed_type === 'fixed')
+    setIsTransferEdit(tx.type === 'transfer' || tx.type === 'credit_card_payment')
+  }
 
   function handleSave() {
     setEditing(false)
@@ -109,11 +122,11 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
       <div className="flex-1 min-w-0">
         {tx.notes ? (
           <>
-            <p className="text-sm font-medium text-gray-900 truncate">{tx.notes}</p>
-            <p className="text-xs text-gray-400 truncate">{tx.description}</p>
+            <p className="text-sm font-medium text-gray-900 truncate" title={tx.notes}>{tx.notes}</p>
+            <p className="text-xs text-gray-400 truncate" title={tx.description}>{tx.description}</p>
           </>
         ) : (
-          <p className="text-sm font-medium text-gray-900 truncate">{tx.description}</p>
+          <p className="text-sm font-medium text-gray-900 truncate" title={tx.description}>{tx.description}</p>
         )}
 
         {editing ? (
