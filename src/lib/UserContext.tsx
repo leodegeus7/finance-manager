@@ -1,20 +1,26 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
 
-type UserId = 'leo' | 'murilo'
+export type UserId = 'leo' | 'murilo' | 'fazenda'
 
 interface UserContextValue {
-  userId:    UserId
-  userName:  string
-  hasChosen: boolean           // false = show welcome/selection screen
-  setUserId: (id: UserId) => void
-  clearUser: () => void        // go back to selection screen
-  month:     string            // YYYY-MM-01
-  setMonth:  (m: string) => void
+  userId:     UserId
+  userName:   string
+  isFazenda:  boolean          // farm ledger — hides couple-only features
+  hasChosen:  boolean          // false = show welcome/selection screen
+  setUserId:  (id: UserId) => void
+  clearUser:  () => void       // go back to selection screen
+  month:      string           // YYYY-MM-01
+  setMonth:   (m: string) => void
 }
 
 const USERS: Record<UserId, string> = {
-  leo:    'Leonardo',
-  murilo: 'Murilo',
+  leo:     'Leonardo',
+  murilo:  'Murilo',
+  fazenda: 'Fazenda',
+}
+
+function isUserId(v: string | null): v is UserId {
+  return v === 'leo' || v === 'murilo' || v === 'fazenda'
 }
 
 function currentMonthISO(): string {
@@ -25,6 +31,7 @@ function currentMonthISO(): string {
 const UserContext = createContext<UserContextValue>({
   userId:    'leo',
   userName:  'Leonardo',
+  isFazenda: false,
   hasChosen: false,
   setUserId: () => {},
   clearUser: () => {},
@@ -39,7 +46,7 @@ export function useUser() {
 export function UserProvider({ children }: { children: ReactNode }) {
   const [userId, setUserIdState] = useState<UserId>(() => {
     const stored = localStorage.getItem('finance_user_id')
-    return (stored === 'murilo' ? 'murilo' : 'leo') as UserId
+    return isUserId(stored) ? stored : 'leo'
   })
 
   // hasChosen: true if user already picked a profile (saved in localStorage)
@@ -68,7 +75,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <UserContext.Provider value={{ userId, userName: USERS[userId], hasChosen, setUserId, clearUser, month, setMonth }}>
+    <UserContext.Provider value={{ userId, userName: USERS[userId], isFazenda: userId === 'fazenda', hasChosen, setUserId, clearUser, month, setMonth }}>
       {children}
     </UserContext.Provider>
   )

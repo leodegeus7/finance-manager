@@ -188,7 +188,7 @@ export function Transactions() {
           {isDragging ? 'Solte o arquivo aqui' : 'Importar extrato'}
         </p>
         <p className="text-xs text-gray-400 mt-1">
-          Arraste um arquivo ou clique · CSV · Nubank, C6 · PDF · Inter
+          Arraste um arquivo ou clique · CSV · Nubank, C6 · PDF · Inter · OFX/CSV · Sicredi
         </p>
       </div>
 

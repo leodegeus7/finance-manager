@@ -82,9 +82,9 @@ implementada).
 
 | Tabela | Papel |
 |---|---|
-| `users` | `leo`, `murilo`. Campo `investment_target_pct` (meta de investimento, default 20%). |
+| `users` | `leo`, `murilo`, `fazenda`. Campo `investment_target_pct` (meta de investimento, default 20%). `fazenda` é o ledger da fazenda (ver §9). |
 | `sharing_rules` | % de divisão por usuário com `effective_from` (ex.: Leo 60 / Murilo 40). |
-| `categories` | Globais (mesmas p/ conta e cartão). Hierárquicas via `parent_id`. `is_essential` marca custo de vida. IDs `cat-*` = despesa, `inc-*` = receita. |
+| `categories` | Escopadas por ledger via `user_id`: `NULL` = globais do casal (mesmas p/ conta e cartão); `'fazenda'` = categorias da fazenda (§9). Hierárquicas via `parent_id`. `is_essential` marca custo de vida. IDs `cat-*`/`faz-cat-*` = despesa, `inc-*`/`inc-faz-*` = receita. |
 | `accounts` | Contas bancárias. `balance` é o saldo estático/inicial. |
 | `credit_cards` | Cartões. `invoice_total` / `invoice_paid` → status derivado (paid/partial/open). |
 | `transactions` | Núcleo do sistema (ver campos abaixo). |
@@ -269,6 +269,15 @@ de `investment_holdings`). Seção de casal via `computeSplitReport` (`OwedSumma
 Análise mensal de despesas compartilhadas: total + barras por categoria (drill-down),
 gastos fixos do mês, gráfico dia a dia, e histórico mês a mês de quanto cada um pagou +
 acerto (quem deve quanto). Só `context === 'personal'` entra (profissional é excluído).
+**Só aparece para o casal** (leo/murilo) — no perfil `fazenda` a nav troca esse item pela
+página Pessoal × Profissional (§9).
+
+### Pessoal × Profissional — [`pages/FazendaSplit.tsx`](src/app/pages/FazendaSplit.tsx) (`/pessoal-profissional`)
+**Só no perfil `fazenda`.** Usa `transactions.context` para separar o foco **profissional**
+do gasto **pessoal** (no histórico migrado, pessoal = categoria "Particular"). Mostra: gasto
+pessoal do mês e % da despesa; receita/despesa/saldo profissional vs pessoal (`computeCashFlow`
+com `applyFilters({context})`); saldo XP dividido (contas `faz-acc-xp-pessoal`/`-profissional`,
+via `useNetWorth`); barras das categorias do pessoal; e o histórico mês a mês.
 
 ### Checklist — [`pages/MonthlyChecklist.tsx`](src/app/pages/MonthlyChecklist.tsx) (`/checklist`)
 Status mensal de tarefas (ex.: lançar saldo das contas via `BalanceEntryModal` →
@@ -307,6 +316,18 @@ Handlers em `src/import/handlers/` (cada um implementa `identify`/`parse`/`norma
   [`ImportModal`](src/components/import/ImportModal.tsx) pede a **senha** quando o PDF é
   protegido (`extractPDFText(buf, password)`; `isPasswordError` detecta a `PasswordException`).
 - `InterCreditPDFHandler` — fatura Inter (PDF, via pdfjs)
+- `SicrediAccountHandler` — extrato de conta Sicredi (**OFX/SGML**). `identify` por conteúdo
+  (`BANKID 748`) e/ou nome `sicredi`; o `resolveHandler` tem um **branch OFX** (como o de PDF) que
+  passa as linhas do conteúdo ao `identify`. `external_id = <FITID>` (id único do banco → dedup
+  perfeito). Overrides: `APLICACAO FINANCEIRA`→`investment_contribution`, `RESG.APLIC`→
+  `investment_withdrawal` (as varreduras de aplicação saem do fluxo), `PAG. FATURA`→
+  `credit_card_payment`. `context` default `professional` (Sicredi = fazenda).
+- `SicrediCreditHandler` — fatura Visa Sicredi (**CSV `;`** com **preâmbulo** de metadados antes do
+  cabeçalho `Data;Descrição;Parcela;Valor`). `parse` pula o preâmbulo; `detectStatementMonth` lê a
+  "Data de Vencimento" → `statement_month`. Valor>0 = `credit_card_purchase`; valor<0 = estorno →
+  `income` (neta o total); linha "Pag Fat" (pagamento da fatura anterior) é ignorada. Parcela
+  `(01/02)`→`installment_*`. `external_id = hash(data, desc, valor, parcela, cartão[, ocorrência])`.
+  Validação: compras − estornos = "Valor Total" da fatura.
 - `MuriloTransacoesHandler` — planilha de transações do Murilo
 
 **Extrato de saldo Nubank (não é um handler de transações):** [`nubankStatementBalance.ts`](src/import/utils/nubankStatementBalance.ts)
@@ -345,5 +366,48 @@ ocorrência (label + número direto, sem "R$"), que é a inequívoca.
   (o de xlsx precisaria da dep `xlsx`). Composição por ticker é só da XP (snapshot manual).
 - `account_balance_history` já está no `schema.sql` (resolvido). Dashboard usar `generateInsights`
   real em vez de `MOCK_INSIGHTS`. Auth real + RLS por usuário (hoje `allow all`). Sem testes.
+
+---
+
+## 9. Ledger Fazenda
+
+Terceiro perfil (`user_id='fazenda'`) para as finanças de uma fazenda de leite, **isolado** do
+casal reaproveitando o scoping por `user_id` que já existe em todas as funções de `lib/db/*`.
+Sem auth ainda (login com senha é fase futura) — é só mais um perfil no `WelcomeScreen`.
+
+**O que muda no código:**
+- `UserId = 'leo' | 'murilo' | 'fazenda'` ([`UserContext.tsx`](src/lib/UserContext.tsx)); expõe
+  `isFazenda`. A nav ([`App.tsx`](src/app/App.tsx)) é por perfil: fazenda esconde **Casal** e mostra
+  **Pessoal × Profissional** (§5).
+- **Categorias por ledger:** `categories.user_id` (`NULL` = casal, `'fazenda'` = fazenda).
+  `fetchCategories(userId)` filtra conforme o perfil ([`categories.ts`](src/lib/db/categories.ts)).
+  Migração idempotente [`20260707_categories_owner.sql`](supabase/migrations/20260707_categories_owner.sql).
+
+**Migração do histórico (Excel → SQL):** o controle manual do usuário (`SICREDI-transa.xlsx`,
+abas `CONTA` + `CARTÃO` + `INVESTIMENTOS XP`, jun/2024→ago/2026) vira um seed idempotente via
+[`scripts/parse_fazenda_xlsx.py`](scripts/parse_fazenda_xlsx.py) →
+[`20260708_fazenda_seed.sql`](supabase/migrations/20260708_fazenda_seed.sql) (~7 mil transações,
+contas Sicredi/Itaú, cartões Visa/Black, ~130 categorias, saldos). **Ordem de execução no SQL
+Editor:** primeiro `20260707`, depois `20260708`. Regras do parser (validadas contra os pivôs
+`DADOS` da planilha):
+- **Competência = coluna `MÊS`** do usuário (parse robusto em `parse_mes`: `'M/YYYY'`, serial de
+  data, ou vazio→mês da data) — reproduz os fechamentos manuais. Cartão: `statement_month` = mês da
+  data da fatura (col "Cartão") — bate com o agrupamento dos `DADOS`. Saldos mensais usam o mês da
+  **data** (fim de mês real), não a competência.
+- `context = 'personal'` quando a categoria é **"Particular"**; senão `'professional'`.
+- **Overrides de tipo** (evitam inflar o fluxo): categoria `Sicredi Aplicação Automática` →
+  `investment_*` (as varreduras diárias de ±R$400 mil que se anulam saem do fluxo); descrição com
+  "fatura" na CONTA → `credit_card_payment` (não duplica com as compras do `CARTÃO`).
+- Estorno de cartão (valor<0) → `income` (neta o total; o net receita−despesa fica correto, a
+  receita bruta fica levemente inflada — diferença conhecida).
+- A conta-corrente Sicredi fica ~R$0 (dinheiro vive na aplicação automática/XP); o patrimônio real
+  aparece via as contas de investimento `faz-acc-xp-pessoal`/`faz-acc-xp-profissional` (custodian `XP`).
+- **Fase 2 (feita):** importadores Sicredi in-app — `SicrediAccountHandler` (OFX) +
+  `SicrediCreditHandler` (CSV Visa). Ver §6. **Atenção à dupla contagem com a migração:** os
+  importadores dedupam por `(external_id, source)` dentro do próprio `source` (FITID/hash), mas
+  **não** contra os dados migrados (`fazenda_xlsx_*`). Como a migração cobre até ~ago/2026,
+  reimportar o extrato de agosto **duplica**; a fatura de setembro é nova. Definir um mês de corte
+  entre "migração" e "importação" ao adotar.
+- **Fase 3 (pendente):** login real + RLS por usuário.
 </content>
 </invoke>

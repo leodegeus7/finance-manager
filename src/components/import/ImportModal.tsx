@@ -10,6 +10,7 @@ import { runImportPipeline } from '@/import/ImportPipeline'
 import { NormalizedTransaction } from '@/import/types'
 import { InterCreditPDFHandler } from '@/import/handlers/InterCreditPDFHandler'
 import { C6CreditPDFHandler } from '@/import/handlers/C6CreditPDFHandler'
+import { SicrediCreditHandler } from '@/import/handlers/SicrediCreditHandler'
 import { extractPDFText, isPasswordError } from '@/import/utils/pdf'
 import { isNubankStatement, parseNubankStatement, NubankStatementInfo } from '@/import/utils/nubankStatementBalance'
 import { upsertTransactions, ImportClassification } from '@/lib/db/import'
@@ -39,6 +40,8 @@ const SOURCE_LABELS: Record<string, string> = {
   c6_credit:         'C6 Cartão',
   c6_credit_pdf:     'C6 Cartão (fatura PDF)',
   inter_credit:      'Inter Cartão',
+  sicredi_account:   'Sicredi Conta (OFX)',
+  sicredi_credit:    'Sicredi Visa (fatura CSV)',
   murilo_transacoes: 'Murilo — Todas as Transações',
 }
 
@@ -53,12 +56,15 @@ function guessCard(source: string, cards: CardRow[]): CardRow | undefined {
   if (source === 'nubank_credit') return cards.find((c) => c.bank === 'nubank') ?? cards[0]
   if (source === 'c6_credit' || source === 'c6_credit_pdf') return cards.find((c) => c.bank === 'c6') ?? cards[0]
   if (source === 'inter_credit')  return cards.find((c) => c.bank === 'inter')  ?? cards[0]
+  if (source === 'sicredi_credit') return cards.find((c) => c.bank === 'sicredi') ?? cards[0]
   return cards[0]
 }
 
 function guessAccount(source: string, accounts: AccountRow[]): AccountRow | undefined {
-  if (source === 'nubank_account') return accounts.find((a) => a.bank === 'nubank') ?? accounts[0]
-  if (source === 'c6_account')     return accounts.find((a) => a.bank === 'c6')     ?? accounts[0]
+  if (source === 'nubank_account')  return accounts.find((a) => a.bank === 'nubank') ?? accounts[0]
+  if (source === 'c6_account')      return accounts.find((a) => a.bank === 'c6')     ?? accounts[0]
+  // Conta Sicredi: preferir a conta-corrente (não a de investimento XP).
+  if (source === 'sicredi_account') return accounts.find((a) => a.bank === 'sicredi' && !a.is_investment) ?? accounts.find((a) => a.bank === 'sicredi') ?? accounts[0]
   return accounts[0]
 }
 
@@ -178,6 +184,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
       // C6 PDF invoice carries its own due date → use it as the invoice month.
       const monthGuess =
         (handler.source === 'c6_credit_pdf' && C6CreditPDFHandler.detectStatementMonth(content)) ||
+        (handler.source === 'sicredi_credit' && SicrediCreditHandler.detectStatementMonth(content)) ||
         guessStatementMonth(f.name)
       setStatementMonth(monthGuess)
 
@@ -481,7 +488,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                 <p className="text-xs text-gray-400 mt-1">CSV · Nubank, C6 · PDF · Inter, C6 (fatura c/ senha), Nubank (extrato)</p>
               </>
             )}
-            <input ref={fileRef} type="file" accept=".csv,.pdf" className="hidden"
+            <input ref={fileRef} type="file" accept=".csv,.pdf,.ofx" className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
           </div>
         )}

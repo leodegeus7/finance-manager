@@ -12,6 +12,8 @@ import { C6CreditPDFHandler }         from './handlers/C6CreditPDFHandler'
 import { InterAccountHandler }        from './handlers/InterAccountHandler'
 import { InterCreditPDFHandler }      from './handlers/InterCreditPDFHandler'
 import { MuriloTransacoesHandler }    from './handlers/MuriloTransacoesHandler'
+import { SicrediAccountHandler }      from './handlers/SicrediAccountHandler'
+import { SicrediCreditHandler }       from './handlers/SicrediCreditHandler'
 import { parseCSV }                   from './utils/csv'
 
 // Order matters for identify() resolution
@@ -19,6 +21,8 @@ const HANDLERS: ImportHandler[] = [
   new InterCreditPDFHandler(),      // PDF — identified by 'inter' in filename
   new InterAccountHandler(),        // Inter CSV Account
   new C6CreditPDFHandler(),         // PDF — identified by C6 markers in the text
+  new SicrediAccountHandler(),      // OFX — extrato de conta Sicredi
+  new SicrediCreditHandler(),       // CSV — fatura Visa Sicredi (antes dos CSV genéricos)
   new MuriloTransacoesHandler(),    // Before other handlers — unique SeparaçãoLeo header
   new NubankCreditHandler(),        // CC before account (both have 'nubank' in name)
   new NubankAccountHandler(),
@@ -38,6 +42,19 @@ export interface HandlerResolution {
  */
 export function resolveHandler(fileName: string, fileContent: string): HandlerResolution {
   const isPDF = fileName.toLowerCase().endsWith('.pdf')
+  const isOFX = fileName.toLowerCase().endsWith('.ofx') ||
+    /^OFXHEADER|<OFX>/i.test(fileContent.slice(0, 400))
+
+  if (isOFX) {
+    // OFX é SGML, não CSV — passa as linhas do conteúdo p/ o identify (como no PDF).
+    const lines = fileContent ? fileContent.split('\n').map((l) => l.trim()).slice(0, 200) : []
+    for (const handler of HANDLERS) {
+      if (handler.identify(fileName, lines)) {
+        return { handler, headers: lines, rows: [] }
+      }
+    }
+    throw new Error(`Nenhum handler encontrado para o OFX "${fileName}".`)
+  }
 
   if (isPDF) {
     // fileContent is the pre-extracted PDF text — pass its lines so handlers
@@ -74,7 +91,7 @@ export function listHandlers(): string[] {
 
 /** Returns whether a handler needs a credit card context (vs account) */
 export function isCardHandler(source: string): boolean {
-  return ['nubank_credit', 'c6_credit', 'c6_credit_pdf', 'inter_credit'].includes(source)
+  return ['nubank_credit', 'c6_credit', 'c6_credit_pdf', 'inter_credit', 'sicredi_credit'].includes(source)
 }
 
 /** Returns whether a handler is the Murilo multi-source CSV */

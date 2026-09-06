@@ -25,8 +25,10 @@ create table users (
 
 -- Seed initial users (Leonardo & Murilo)
 insert into users (id, name, investment_target_pct) values
-  ('leo',    'Leonardo', 20),
-  ('murilo', 'Murilo',   20)
+  ('leo',     'Leonardo', 20),
+  ('murilo',  'Murilo',   20),
+  -- Ledger da fazenda: 3º perfil, dados 100% isolados (mesmo scoping por user_id).
+  ('fazenda', 'Fazenda',  20)
 on conflict (id) do nothing;
 
 -- ── SHARING RULES ────────────────────────────────────────────
@@ -49,6 +51,10 @@ create table categories (
   name         text not null,
   parent_id    text references categories(id),
   is_essential boolean not null default false,
+  -- Ledger owner. NULL = categorias globais do casal (leo/murilo); 'fazenda' =
+  -- categorias próprias da fazenda. Mantém os dropdowns de cada perfil limpos
+  -- (ver fetchCategories em src/lib/db/categories.ts).
+  user_id      text references users(id),
   created_at   timestamptz default now()
 );
 

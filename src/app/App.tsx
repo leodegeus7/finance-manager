@@ -6,17 +6,23 @@ import { AccountsCards } from './pages/AccountsCards'
 import { NetWorth }      from './pages/NetWorth'
 import { MonthlyChecklist } from './pages/MonthlyChecklist'
 import { Casal }         from './pages/Casal'
+import { FazendaSplit }  from './pages/FazendaSplit'
 import { UserProvider, useUser } from '@/lib/UserContext'
 
 // UI Rule 2.1 — max 4 areas, accessible in 1–2 clicks (5 com o Checklist)
-const NAV = [
-  { to: '/',           label: 'Dashboard',        icon: '⊞' },
-  { to: '/transacoes', label: 'Transações',        icon: '↕' },
-  { to: '/contas',     label: 'Contas & Cartões',  icon: '⬡' },
-  { to: '/patrimonio', label: 'Patrimônio',         icon: '◈' },
-  { to: '/casal',      label: 'Casal',             icon: '♥' },
-  { to: '/checklist',  label: 'Checklist',         icon: '☑' },
-]
+// A nav depende do perfil: o casal vê "Casal"; a fazenda vê "Pessoal × Profissional".
+function navFor(isFazenda: boolean) {
+  return [
+    { to: '/',           label: 'Dashboard',        icon: '⊞' },
+    { to: '/transacoes', label: 'Transações',        icon: '↕' },
+    { to: '/contas',     label: 'Contas & Cartões',  icon: '⬡' },
+    { to: '/patrimonio', label: 'Patrimônio',         icon: '◈' },
+    isFazenda
+      ? { to: '/pessoal-profissional', label: 'Pessoal × Profissional', icon: '⇄' }
+      : { to: '/casal',                label: 'Casal',                  icon: '♥' },
+    { to: '/checklist',  label: 'Checklist',         icon: '☑' },
+  ]
+}
 
 /** Last N months as YYYY-MM-01 values */
 function recentMonths(n = 24): string[] {
@@ -52,7 +58,11 @@ function WelcomeScreen() {
       </div>
 
       <div className="flex gap-4">
-        {(['leo', 'murilo'] as const).map((id) => (
+        {([
+          { id: 'leo',     name: 'Leonardo', letter: 'L' },
+          { id: 'murilo',  name: 'Murilo',   letter: 'M' },
+          { id: 'fazenda', name: 'Fazenda',  letter: 'F' },
+        ] as const).map(({ id, name, letter }) => (
           <button
             key={id}
             onClick={() => setUserId(id)}
@@ -60,10 +70,10 @@ function WelcomeScreen() {
           >
             {/* Avatar */}
             <div className="w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center text-white text-xl font-bold group-hover:scale-105 transition-transform">
-              {id === 'leo' ? 'L' : 'M'}
+              {letter}
             </div>
             <span className="text-sm font-semibold text-gray-900">
-              {id === 'leo' ? 'Leonardo' : 'Murilo'}
+              {name}
             </span>
           </button>
         ))}
@@ -74,14 +84,15 @@ function WelcomeScreen() {
 
 // ── Sidebar ───────────────────────────────────────────────────
 function Sidebar() {
-  const { userId, userName, clearUser, month, setMonth } = useUser()
+  const { userName, isFazenda, clearUser, month, setMonth } = useUser()
   const months = recentMonths()
+  const nav = navFor(isFazenda)
 
   return (
     <aside className="w-56 shrink-0 bg-white border-r border-gray-100 flex flex-col py-6 px-4 fixed h-full z-10">
 
       <nav className="flex flex-col gap-1 flex-1">
-        {NAV.map(({ to, label, icon }) => (
+        {nav.map(({ to, label, icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -153,6 +164,7 @@ function AppShell() {
           <Route path="/contas"      element={<AccountsCards />} />
           <Route path="/patrimonio"  element={<NetWorth />} />
           <Route path="/casal"       element={<Casal />} />
+          <Route path="/pessoal-profissional" element={<FazendaSplit />} />
           <Route path="/checklist"   element={<MonthlyChecklist />} />
         </Routes>
       </main>

@@ -8,6 +8,7 @@ import { fetchCategories, CategoryRow } from '@/lib/db/categories'
 import { TransactionList } from '@/components/transactions/TransactionList'
 import { formatCurrency, formatMonth } from '@/lib/format'
 import { CardRow } from '@/lib/db/accounts'
+import { useUser } from '@/lib/UserContext'
 
 interface Props {
   card: CardRow
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function CardTransactionsModal({ card, month, onClose }: Props) {
+  const { userId } = useUser()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [categories, setCategories]     = useState<CategoryRow[]>([])
   const [loading, setLoading]           = useState(true)
@@ -25,7 +27,7 @@ export function CardTransactionsModal({ card, month, onClose }: Props) {
     setLoading(true)
     Promise.all([
       fetchTransactionsByCard(card.id, month),
-      fetchCategories(),
+      fetchCategories(userId),
     ])
       .then(([txs, cats]) => {
         setTransactions(txs)
@@ -33,7 +35,7 @@ export function CardTransactionsModal({ card, month, onClose }: Props) {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
-  }, [card.id, month])
+  }, [card.id, month, userId])
 
   useEffect(() => { load() }, [load])
 

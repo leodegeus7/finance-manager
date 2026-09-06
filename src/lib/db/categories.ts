@@ -16,11 +16,23 @@ export function filterCategories(cats: CategoryRow[], direction: 'income' | 'exp
   )
 }
 
-export async function fetchCategories(): Promise<CategoryRow[]> {
-  const { data, error } = await supabase
+/**
+ * Categorias são escopadas por ledger via `categories.user_id`:
+ * - casal (leo/murilo): categorias globais (`user_id IS NULL`)
+ * - fazenda: categorias próprias (`user_id = 'fazenda'`)
+ * Isso mantém os dropdowns limpos — cada perfil só vê as suas.
+ */
+export async function fetchCategories(userId: string): Promise<CategoryRow[]> {
+  let query = supabase
     .from('categories')
     .select(`id, name, parent:parent_id ( name )`)
     .order('name')
+
+  query = userId === 'fazenda'
+    ? query.eq('user_id', 'fazenda')
+    : query.is('user_id', null)
+
+  const { data, error } = await query
 
   if (error) throw error
   return (data ?? []).map((r) => ({
