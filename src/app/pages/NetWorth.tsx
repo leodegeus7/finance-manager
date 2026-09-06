@@ -28,7 +28,7 @@ import { useTransactionsSince } from '@/lib/hooks/useTransactionsSince'
 import { useState, useEffect } from 'react'
 
 export function NetWorth() {
-  const { userId, userName, month } = useUser()
+  const { userId, userName, month, isFazenda } = useUser()
   const { timeline, assets, enrichedAccounts, loading, error, reload } = useNetWorth(userId, month)
   const { transactions: incomeTxs } = useTransactionsSince('2026-04-01', userId)
   const investments = useInvestments(userId, month)
@@ -349,8 +349,8 @@ export function NetWorth() {
         </section>
       </div>
 
-      {/* Splits section */}
-      {!txLoading && splitReport.others.length > 0 && (
+      {/* Splits section — conceito de casal, não aparece na fazenda */}
+      {!isFazenda && !txLoading && splitReport.others.length > 0 && (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
             Divisões em {formatMonth(month)}

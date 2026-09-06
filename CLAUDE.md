@@ -379,6 +379,11 @@ Sem auth ainda (login com senha é fase futura) — é só mais um perfil no `We
 - `UserId = 'leo' | 'murilo' | 'fazenda'` ([`UserContext.tsx`](src/lib/UserContext.tsx)); expõe
   `isFazenda`. A nav ([`App.tsx`](src/app/App.tsx)) é por perfil: fazenda esconde **Casal** e mostra
   **Pessoal × Profissional** (§5).
+- **Sem conceito de casal na fazenda:** o split Leo/Murilo não existe no ledger da fazenda. Todo o
+  UI de divisão fica escondido quando `isFazenda`/`tx.user_id === 'fazenda'`: `SplitEditor`
+  (import, add manual, edição inline em `TransactionRow`), `OwedSummary` (Transações + Patrimônio),
+  o filtro de escopo Individual/Compartilhado e o badge "individual" (`splitBadge`). O eixo
+  `context` (Pessoal/Profissional) **permanece** — é o recorte que a fazenda usa (§5).
 - **Categorias por ledger:** `categories.user_id` (`NULL` = casal, `'fazenda'` = fazenda).
   `fetchCategories(userId)` filtra conforme o perfil ([`categories.ts`](src/lib/db/categories.ts)).
   Migração idempotente [`20260707_categories_owner.sql`](supabase/migrations/20260707_categories_owner.sql).

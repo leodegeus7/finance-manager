@@ -805,7 +805,8 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
                               </button>
                             )}
 
-                            {!isIncome && (
+                            {/* Divisão Leo/Murilo — não existe na fazenda */}
+                            {!isIncome && userId !== 'fazenda' && (
                               <SplitEditor
                                 splits={draft.splits}
                                 payerUserId={userId}

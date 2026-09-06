@@ -246,15 +246,17 @@ export function AddTransactionModal({ userId, accounts, cards, categories, onClo
           </div>
         </div>
 
-        {/* Split editor */}
-        <div>
-          <label className={labelCls}>Divisão</label>
-          <SplitEditor
-            splits={splits}
-            payerUserId={userId}
-            onChange={setSplits}
-          />
-        </div>
+        {/* Split editor — divisão Leo/Murilo, não existe na fazenda */}
+        {userId !== 'fazenda' && (
+          <div>
+            <label className={labelCls}>Divisão</label>
+            <SplitEditor
+              splits={splits}
+              payerUserId={userId}
+              onChange={setSplits}
+            />
+          </div>
+        )}
 
         {/* Notes */}
         <div>

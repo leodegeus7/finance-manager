@@ -28,7 +28,7 @@ import { CardRow } from '@/lib/db/accounts'
 import { OwedSummary } from '@/components/transactions/OwedSummary'
 
 export function Transactions() {
-  const { userId, userName, month, setMonth } = useUser()
+  const { userId, userName, month, setMonth, isFazenda } = useUser()
   const { transactions, loading, error, handleUpdate, refetch } = useTransactions(month, userId)
   const { categories } = useCategories()
   const { accounts, cards } = useAccounts(userId, month)
@@ -163,8 +163,8 @@ export function Transactions() {
         </Card>
       </div>
 
-      {/* Cobranças do mês */}
-      <OwedSummary transactions={filtered} payerUserId={userId} />
+      {/* Cobranças do mês — só faz sentido para o casal (não na fazenda) */}
+      {!isFazenda && <OwedSummary transactions={filtered} payerUserId={userId} />}
 
       {/* Import CTA — click or drag-and-drop directly */}
       <div
@@ -244,18 +244,20 @@ export function Transactions() {
             ))}
           </div>
 
-          {/* Scope toggle */}
-          <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs">
-            {(['all','individual','shared'] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setScopeFilter(v)}
-                className={`px-3 py-1 rounded-md transition-colors ${scopeFilter === v ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                {v === 'all' ? 'Tudo' : v === 'individual' ? 'Individual' : 'Compartilhado'}
-              </button>
-            ))}
-          </div>
+          {/* Scope toggle (individual/compartilhado) — conceito de casal, some na fazenda */}
+          {!isFazenda && (
+            <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs">
+              {(['all','individual','shared'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setScopeFilter(v)}
+                  className={`px-3 py-1 rounded-md transition-colors ${scopeFilter === v ? 'bg-white shadow-sm font-medium text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  {v === 'all' ? 'Tudo' : v === 'individual' ? 'Individual' : 'Compartilhado'}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Source toggle — cartão / conta */}
           <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs">

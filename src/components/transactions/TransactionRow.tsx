@@ -197,11 +197,14 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
                   </select>
                 </div>
 
-                <SplitEditor
-                  splits={splits}
-                  payerUserId={tx.user_id}
-                  onChange={setSplits}
-                />
+                {/* Divisão Leo/Murilo — conceito de casal, não existe na fazenda */}
+                {tx.user_id !== 'fazenda' && (
+                  <SplitEditor
+                    splits={splits}
+                    payerUserId={tx.user_id}
+                    onChange={setSplits}
+                  />
+                )}
               </>
             )}
 
@@ -254,7 +257,8 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
             }`}>
               {tx.context === 'professional' ? 'profissional' : 'pessoal'}
             </span>
-            {(() => {
+            {/* Badge de divisão (individual/÷) — conceito de casal, some na fazenda */}
+            {tx.user_id !== 'fazenda' && (() => {
               const badge = splitBadge(tx.splits, tx.user_id)
               return (
                 <span className={`text-xs px-1.5 py-0.5 rounded-md ${badge.style}`}>
