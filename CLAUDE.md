@@ -384,6 +384,10 @@ Sem auth ainda (login com senha é fase futura) — é só mais um perfil no `We
   (import, add manual, edição inline em `TransactionRow`), `OwedSummary` (Transações + Patrimônio),
   o filtro de escopo Individual/Compartilhado e o badge "individual" (`splitBadge`). O eixo
   `context` (Pessoal/Profissional) **permanece** — é o recorte que a fazenda usa (§5).
+- **Sem dados do casal na fazenda no Patrimônio:** a "Evolução da renda" (`IncomeEvolutionChart`)
+  é a renda pessoal do Leonardo (histórico fixo salário/freelancer) → escondida na fazenda.
+  `fetchAssets(userId)` ([`networth.ts`](src/lib/db/networth.ts)): a fazenda vê só ativos
+  `user_id='fazenda'`, nunca os `is_shared=true` do casal (ex.: "Dinheiro Viagem 2027").
 - **Categorias por ledger:** `categories.user_id` (`NULL` = casal, `'fazenda'` = fazenda).
   `fetchCategories(userId)` filtra conforme o perfil ([`categories.ts`](src/lib/db/categories.ts)).
   Migração idempotente [`20260707_categories_owner.sql`](supabase/migrations/20260707_categories_owner.sql).

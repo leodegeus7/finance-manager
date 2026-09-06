@@ -157,14 +157,17 @@ export function NetWorth() {
         </div>
       </Card>
 
-      {/* Income evolution */}
-      <Card padding="md">
-        <CardTitle>Evolução da renda</CardTitle>
-        <p className="text-xs text-gray-400 -mt-0.5 mb-2">Salário, Freelancer e Fazenda · histórico desde Dez/2018</p>
-        <div className="mt-4">
-          <IncomeEvolutionChart liveTxs={incomeTxs} />
-        </div>
-      </Card>
+      {/* Income evolution — renda pessoal do Leonardo (salário/freelancer),
+          histórico fixo. Não faz sentido na fazenda. */}
+      {!isFazenda && (
+        <Card padding="md">
+          <CardTitle>Evolução da renda</CardTitle>
+          <p className="text-xs text-gray-400 -mt-0.5 mb-2">Salário, Freelancer e Fazenda · histórico desde Dez/2018</p>
+          <div className="mt-4">
+            <IncomeEvolutionChart liveTxs={incomeTxs} />
+          </div>
+        </Card>
+      )}
 
       {/* Rendimento dos investimentos — ano a ano */}
       {investments.hasInvestmentAccounts && (

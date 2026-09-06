@@ -174,12 +174,18 @@ function toAsset(r: Record<string, unknown>): Asset {
  * users (so couple-shared assets show up on both Patrimônio pages).
  */
 export async function fetchAssets(userId: string): Promise<Asset[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('assets')
     .select('*')
     .eq('is_active', true)
-    .or(`user_id.eq.${userId},is_shared.eq.true`)
-    .order('name')
+
+  // `is_shared` é um conceito de casal (mostra o ativo p/ leo e murilo). A
+  // fazenda é um ledger à parte: vê só os próprios ativos, nunca os do casal.
+  query = userId === 'fazenda'
+    ? query.eq('user_id', 'fazenda')
+    : query.or(`user_id.eq.${userId},is_shared.eq.true`)
+
+  const { data, error } = await query.order('name')
 
   if (error) throw error
   return (data ?? []).map(toAsset)
