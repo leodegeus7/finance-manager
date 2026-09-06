@@ -326,10 +326,20 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
   // with the same description (e.g. recurring merchant names), so the user
   // doesn't have to classify each occurrence individually. Asks for
   // confirmation first when there are matches.
+  // Convenção da fazenda: a categoria "Particular" é sempre um gasto PESSOAL,
+  // então ao escolhê-la o contexto vira 'personal' automaticamente.
+  function categoryPatch(categoryId: string): Partial<Draft> {
+    const name = categories.find((c) => c.id === categoryId)?.name?.trim().toLowerCase()
+    return name === 'particular'
+      ? { category_id: categoryId, context: 'personal' }
+      : { category_id: categoryId }
+  }
+
   function updateCategoryForAll(externalId: string, categoryId: string) {
+    const patch = categoryPatch(categoryId)
     const tx = normalizedTxs.find((t) => t.external_id === externalId)
     if (!tx) {
-      updateDraft(externalId, { category_id: categoryId })
+      updateDraft(externalId, patch)
       return
     }
 
@@ -343,7 +353,7 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
     })
 
     if (matches.length === 0) {
-      updateDraft(externalId, { category_id: categoryId })
+      updateDraft(externalId, patch)
       return
     }
 
@@ -354,11 +364,11 @@ export function ImportModal({ userId, accounts, cards, categories, initialFile, 
 
     setDrafts((prev) => {
       const next = new Map(prev)
-      next.set(externalId, { ...prev.get(externalId)!, category_id: categoryId })
+      next.set(externalId, { ...prev.get(externalId)!, ...patch })
       if (applyAll) {
         for (const t of matches) {
           const d = prev.get(t.external_id)!
-          next.set(t.external_id, { ...d, category_id: categoryId })
+          next.set(t.external_id, { ...d, ...patch })
         }
       }
       return next

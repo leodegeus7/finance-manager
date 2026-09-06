@@ -48,6 +48,18 @@ await upsertAll('categories', data.categories, 'id')
 await upsertAll('transactions', data.transactions, 'external_id,source')
 await upsertAll('account_balance_history', data.account_balance_history, 'account_id,month')
 
+// Limpeza: remove categorias da fazenda que não estão mais no seed (ex.: as
+// "categorias" lixo débito/crédito). Roda DEPOIS das transações (já re-apontadas
+// para NULL), senão a FK bloqueia o delete.
+const validIds = new Set(data.categories.map((c) => c.id))
+const existing = await sb.from('categories').select('id,name').eq('user_id', 'fazenda')
+const stale = (existing.data ?? []).filter((c) => !validIds.has(c.id))
+for (const c of stale) {
+  const { error } = await sb.from('categories').delete().eq('id', c.id)
+  if (error) console.error(`✗ delete categoria ${c.id}:`, error.message)
+  else console.log(`  removida categoria lixo: ${c.name} (${c.id})`)
+}
+
 // Resumo final
 const { count } = await sb.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', 'fazenda')
 console.log(`\n✔ Concluído. Transações da fazenda no banco: ${count}`)

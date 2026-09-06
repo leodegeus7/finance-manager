@@ -35,6 +35,18 @@ OUT  = sys.argv[2] if len(sys.argv) > 2 else os.path.join(
 APLIC_CAT   = 'Sicredi Aplicação Automática'
 FATURA_RE   = re.compile(r'fatura', re.I)
 
+# Valores que aparecem na coluna "Categoria" da planilha mas NÃO são categorias
+# de verdade — são o tipo da operação (débito/crédito) ou o instrumento (cartão),
+# ou vazio. Viram "sem categoria" (NULL) p/ o usuário classificar depois. A chave
+# usa só alfanuméricos (sem acento/pontuação), p/ pegar variantes como "'''Credito".
+_JUNK_CATS = {'debito', 'credito', 'cartao', ''}
+
+def norm_cat(name):
+    n = (name or '').strip()
+    ascii_ = unicodedata.normalize('NFKD', n).encode('ascii', 'ignore').decode('ascii').lower()
+    key = re.sub(r'[^a-z0-9]', '', ascii_)
+    return '' if key in _JUNK_CATS else n
+
 # ── XLSX parsing (stdlib) ─────────────────────────────────────
 def load_workbook(path):
     z = zipfile.ZipFile(path)
@@ -169,7 +181,7 @@ def main():
         if date is None or valor is None or not banco:
             continue
         desc = c.get(2, '') or '(sem descrição)'
-        catname = c.get(7, '') or ''
+        catname = norm_cat(c.get(7, ''))
         acc = 'faz-acc-sicredi' if 'sicredi' in banco.lower() else \
               'faz-acc-itau' if 'ita' in banco.lower() else None
         if acc is None:
@@ -217,7 +229,7 @@ def main():
         if date is None or valor is None:
             continue
         desc = c.get(2, '') or '(sem descrição)'
-        catname = c.get(6, '') or ''
+        catname = norm_cat(c.get(6, ''))
         cardname = (c.get(10, '') or '').lower()
         card = 'faz-card-black' if 'black' in cardname else 'faz-card-visa'  # blank -> visa (cartão atual)
         fatura = serial_to_date(c.get(3))
