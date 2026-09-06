@@ -55,6 +55,14 @@ export function NetWorth() {
   const breakdown = buildNetWorthBreakdown(accountBalances, assets)
   const latest    = netWorthForMonth(timeline, month)
 
+  // Resumo: contas de corretora (is_investment, ex.: XP) contam como
+  // "Investimentos", não como "Contas" — junto com os ativos da tabela de ativos.
+  const investAccountsTotal = enrichedAccounts
+    .filter((a) => a.is_investment)
+    .reduce((s, a) => s + a.latestBalance, 0)
+  const contasTotal        = Math.round((breakdown.accounts_total - investAccountsTotal) * 100) / 100
+  const investimentosTotal = Math.round((breakdown.assets_total + investAccountsTotal) * 100) / 100
+
   const splitReport = useMemo(
     () => computeSplitReport(splitTxs, userId),
     [splitTxs, userId],
@@ -142,8 +150,8 @@ export function NetWorth() {
               )}
             </div>
             <div className="flex gap-6 mt-3 text-sm text-gray-500">
-              <span>Contas: <strong className="text-gray-900">{formatCurrency(breakdown.accounts_total)}</strong></span>
-              <span>Investimentos: <strong className="text-gray-900">{formatCurrency(breakdown.assets_total)}</strong></span>
+              <span>Contas: <strong className="text-gray-900">{formatCurrency(contasTotal)}</strong></span>
+              <span>Investimentos: <strong className="text-gray-900">{formatCurrency(investimentosTotal)}</strong></span>
             </div>
           </>
         )}
