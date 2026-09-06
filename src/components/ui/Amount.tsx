@@ -10,6 +10,22 @@ interface AmountProps {
   className?: string
 }
 
+// Fonte adaptativa: valores grandes (ex.: patrimônio/receita da fazenda, com 7+
+// dígitos) diminuem a fonte p/ não estourar o card. Cada tamanho tem uma escala
+// que desce conforme o comprimento do texto formatado.
+const SIZE_STEPS: Record<NonNullable<AmountProps['size']>, [maxLen: number, cls: string][]> = {
+  sm: [[Infinity, 'text-base']],
+  md: [[13, 'text-xl'], [Infinity, 'text-base']],
+  lg: [[10, 'text-3xl'], [12, 'text-2xl'], [Infinity, 'text-xl']],
+  xl: [[13, 'text-5xl'], [16, 'text-4xl'], [Infinity, 'text-3xl']],
+}
+
+function sizeClass(size: NonNullable<AmountProps['size']>, len: number): string {
+  const steps = SIZE_STEPS[size]
+  const hit = steps.find(([max]) => len <= max) ?? steps[steps.length - 1]
+  return hit[1]
+}
+
 export function Amount({ value, size = 'md', signed = false, colored = true, className }: AmountProps) {
   const isPositive = value >= 0
   const display = (signed && value > 0 ? '+' : '') + formatCurrency(Math.abs(value))
@@ -17,11 +33,9 @@ export function Amount({ value, size = 'md', signed = false, colored = true, cla
   return (
     <span
       className={clsx(
-        'font-semibold tabular-nums',
-        size === 'sm' && 'text-base',
-        size === 'md' && 'text-xl',
-        size === 'lg' && 'text-3xl',
-        size === 'xl' && 'text-5xl font-bold',
+        'font-semibold tabular-nums whitespace-nowrap',
+        sizeClass(size, display.length),
+        size === 'xl' && 'font-bold',
         colored && isPositive && 'text-gray-900',
         colored && !isPositive && 'text-red-600',
         className,
