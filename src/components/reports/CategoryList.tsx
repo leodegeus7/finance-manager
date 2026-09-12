@@ -10,9 +10,10 @@ interface Props {
   collapsedCount?: number
   emptyLabel: string
   tone: 'expense' | 'income'
+  onCategoryClick?: (categoryId: string) => void
 }
 
-export function CategoryList({ data, collapsedCount = 6, emptyLabel, tone }: Props) {
+export function CategoryList({ data, collapsedCount = 6, emptyLabel, tone, onCategoryClick }: Props) {
   const [expanded, setExpanded] = useState(false)
 
   if (data.length === 0) {
@@ -27,9 +28,13 @@ export function CategoryList({ data, collapsedCount = 6, emptyLabel, tone }: Pro
   return (
     <div className="space-y-3">
       {visible.map((cat) => (
-        <div key={cat.category_id}>
+        <div
+          key={cat.category_id}
+          onClick={onCategoryClick ? () => onCategoryClick(cat.category_id) : undefined}
+          className={onCategoryClick ? 'cursor-pointer group' : undefined}
+        >
           <div className="flex justify-between items-center mb-1">
-            <span className="text-sm text-gray-700 font-medium truncate max-w-[60%]">
+            <span className="text-sm text-gray-700 font-medium truncate max-w-[60%] group-hover:text-gray-900">
               {cat.category_name}
             </span>
             <span className="text-sm font-semibold text-gray-900 tabular-nums">

@@ -12,7 +12,8 @@ import { useMemo, useState } from 'react'
 import { Card, CardTitle } from '@/components/ui/Card'
 import { Amount } from '@/components/ui/Amount'
 import { CategoryList } from '@/components/reports/CategoryList'
-import { applyFilters } from '@/engine/CashFlowEngine'
+import { CategoryTransactionsModal } from '@/components/transactions/CategoryTransactionsModal'
+import { applyFilters, isCountableExpense, isCountableIncome } from '@/engine/CashFlowEngine'
 import { computeMonthlyReport } from '@/engine/MonthlyReportEngine'
 import { exportMonthlyReportToExcel } from '@/lib/exportMonthlyReport'
 import { useTransactions } from '@/lib/hooks/useTransactions'
@@ -20,18 +21,48 @@ import { useUser } from '@/lib/UserContext'
 import { formatCurrency, formatMonth } from '@/lib/format'
 
 type Scope = 'total' | 'conta' | 'cartao'
+type Direction = 'despesas' | 'receitas'
 
 const SCOPE_LABEL: Record<Scope, string> = { total: 'Total', conta: 'Conta', cartao: 'Cartão' }
 
+interface Selected {
+  categoryId: string
+  categoryName: string
+  direction: Direction
+}
+
 export function MonthlyReport() {
   const { userId, userName, month } = useUser()
-  const { transactions, loading } = useTransactions(month, userId)
+  const { transactions, loading, handleUpdate, refetch } = useTransactions(month, userId)
   const [scope, setScope] = useState<Scope>('total')
   const [exporting, setExporting] = useState(false)
+  const [selected, setSelected] = useState<Selected | null>(null)
 
   const monthTxs = useMemo(() => applyFilters(transactions, { month }), [transactions, month])
   const report = useMemo(() => computeMonthlyReport(monthTxs), [monthTxs])
   const section = report[scope]
+
+  // Mesmo recorte por origem usado no MonthlyReportEngine, pra achar as
+  // transações por trás do número clicado.
+  const scopeTxs = useMemo(() => {
+    if (scope === 'cartao') return monthTxs.filter((tx) => tx.credit_card_id != null)
+    if (scope === 'conta') return monthTxs.filter((tx) => tx.credit_card_id == null)
+    return monthTxs
+  }, [monthTxs, scope])
+
+  const selectedTxs = useMemo(() => {
+    if (!selected) return []
+    const directionFilter = selected.direction === 'despesas' ? isCountableExpense : isCountableIncome
+    return scopeTxs.filter(
+      (tx) => directionFilter(tx) && (tx.category_id ?? '__uncategorized__') === selected.categoryId,
+    )
+  }, [scopeTxs, selected])
+
+  function selectCategory(direction: Direction, categoryId: string) {
+    const list = direction === 'despesas' ? section.despesas : section.receitas
+    const cat = list.find((c) => c.category_id === categoryId)
+    if (cat) setSelected({ categoryId: cat.category_id, categoryName: cat.category_name, direction })
+  }
 
   async function handleExport() {
     setExporting(true)
@@ -98,7 +129,12 @@ export function MonthlyReport() {
           <Card padding="md">
             <CardTitle>Despesas por categoria — {SCOPE_LABEL[scope]}</CardTitle>
             <div className="mt-4">
-              <CategoryList data={section.despesas} emptyLabel="Sem despesas neste mês" tone="expense" />
+              <CategoryList
+                data={section.despesas}
+                emptyLabel="Sem despesas neste mês"
+                tone="expense"
+                onCategoryClick={(id) => selectCategory('despesas', id)}
+              />
             </div>
           </Card>
 
@@ -106,7 +142,12 @@ export function MonthlyReport() {
           <Card padding="md">
             <CardTitle>Receitas por categoria — {SCOPE_LABEL[scope]}</CardTitle>
             <div className="mt-4">
-              <CategoryList data={section.receitas} emptyLabel="Sem receitas neste mês" tone="income" />
+              <CategoryList
+                data={section.receitas}
+                emptyLabel="Sem receitas neste mês"
+                tone="income"
+                onCategoryClick={(id) => selectCategory('receitas', id)}
+              />
             </div>
           </Card>
 
@@ -114,6 +155,18 @@ export function MonthlyReport() {
             {formatCurrency(section.totalDespesa)} em despesas · {formatCurrency(section.totalReceita)} em receitas · {SCOPE_LABEL[scope].toLowerCase()}
           </p>
         </>
+      )}
+
+      {selected && (
+        <CategoryTransactionsModal
+          categoryName={selected.categoryName}
+          month={month}
+          transactions={selectedTxs}
+          subtitle={`${SCOPE_LABEL[scope].toLowerCase()} · ${selected.direction === 'despesas' ? 'despesa' : 'receita'}`}
+          onClose={() => setSelected(null)}
+          onUpdate={handleUpdate}
+          onDelete={() => refetch()}
+        />
       )}
     </div>
   )
