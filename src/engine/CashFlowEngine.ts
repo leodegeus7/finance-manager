@@ -142,19 +142,14 @@ export function computeCashFlow(transactions: Transaction[]): CashFlowSummary {
 }
 
 /**
- * Computes per-category expense breakdown.
- * Used for bar charts on Dashboard (Block 3) and Transactions page.
- *
- * Only counts expense-type transactions.
+ * Shared grouping logic behind computeCategoryBreakdown/computeIncomeCategoryBreakdown.
  * Returns sorted by total descending.
  */
-export function computeCategoryBreakdown(transactions: Transaction[]): CategoryBreakdown[] {
+function buildCategoryBreakdown(txs: Transaction[]): CategoryBreakdown[] {
   const map = new Map<string, CategoryBreakdown>()
+  const total = txs.reduce((sum, tx) => sum + tx.amount, 0)
 
-  const expenseTxs = transactions.filter(isCountableExpense)
-  const totalExpenses = expenseTxs.reduce((sum, tx) => sum + tx.amount, 0)
-
-  for (const tx of expenseTxs) {
+  for (const tx of txs) {
     const key = tx.category_id ?? '__uncategorized__'
     const name = tx.category_name ?? 'Sem categoria'
     const parent = tx.parent_category_name
@@ -176,16 +171,33 @@ export function computeCategoryBreakdown(transactions: Transaction[]): CategoryB
     entry.transaction_count++
   }
 
-  // Compute percentages and round
   const result: CategoryBreakdown[] = []
   for (const entry of map.values()) {
     entry.total = round(entry.total)
-    entry.percentage_of_total =
-      totalExpenses > 0 ? round((entry.total / totalExpenses) * 100) : 0
+    entry.percentage_of_total = total > 0 ? round((entry.total / total) * 100) : 0
     result.push(entry)
   }
 
   return result.sort((a, b) => b.total - a.total)
+}
+
+/**
+ * Computes per-category expense breakdown.
+ * Used for bar charts on Dashboard (Block 3) and Transactions page.
+ *
+ * Only counts expense-type transactions.
+ * Returns sorted by total descending.
+ */
+export function computeCategoryBreakdown(transactions: Transaction[]): CategoryBreakdown[] {
+  return buildCategoryBreakdown(transactions.filter(isCountableExpense))
+}
+
+/**
+ * Computes per-category income breakdown — the receita counterpart of
+ * computeCategoryBreakdown. Only counts income-type transactions.
+ */
+export function computeIncomeCategoryBreakdown(transactions: Transaction[]): CategoryBreakdown[] {
+  return buildCategoryBreakdown(transactions.filter(isCountableIncome))
 }
 
 /**

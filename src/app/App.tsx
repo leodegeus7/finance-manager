@@ -7,10 +7,11 @@ import { NetWorth }      from './pages/NetWorth'
 import { MonthlyChecklist } from './pages/MonthlyChecklist'
 import { Casal }         from './pages/Casal'
 import { FazendaSplit }  from './pages/FazendaSplit'
+import { MonthlyReport } from './pages/MonthlyReport'
 import { UserProvider, useUser } from '@/lib/UserContext'
 
-// UI Rule 2.1 — max 4 areas, accessible in 1–2 clicks (5 com o Checklist)
-// A nav depende do perfil: o casal vê "Casal"; a fazenda vê "Pessoal × Profissional".
+// A nav depende do perfil: o casal vê "Casal"; a fazenda vê "Pessoal × Profissional"
+// + "Fechamento Mensal" (relatório por categoria pro financeiro).
 function navFor(isFazenda: boolean) {
   return [
     { to: '/',           label: 'Dashboard',        icon: '⊞' },
@@ -20,6 +21,7 @@ function navFor(isFazenda: boolean) {
     isFazenda
       ? { to: '/pessoal-profissional', label: 'Pessoal × Profissional', icon: '⇄' }
       : { to: '/casal',                label: 'Casal',                  icon: '♥' },
+    ...(isFazenda ? [{ to: '/fechamento-mensal', label: 'Fechamento Mensal', icon: '▤' }] : []),
     { to: '/checklist',  label: 'Checklist',         icon: '☑' },
   ]
 }
@@ -165,6 +167,7 @@ function AppShell() {
           <Route path="/patrimonio"  element={<NetWorth />} />
           <Route path="/casal"       element={<Casal />} />
           <Route path="/pessoal-profissional" element={<FazendaSplit />} />
+          <Route path="/fechamento-mensal" element={<MonthlyReport />} />
           <Route path="/checklist"   element={<MonthlyChecklist />} />
         </Routes>
       </main>
