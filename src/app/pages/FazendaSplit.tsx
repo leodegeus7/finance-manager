@@ -7,8 +7,10 @@
 // pessoal é a categoria "Particular" → context='personal'.
 //
 // Reaproveita applyFilters/computeCashFlow/computeCategoryBreakdown
-// (CashFlowEngine) e os saldos por conta de useNetWorth (contas XP
-// pessoal/profissional).
+// (CashFlowEngine) e o saldo total da conta única XP (faz-acc-xp) via
+// useNetWorth, dividido pessoal/profissional pelo lançamento mensal em
+// `fazenda_xp_split` (não são duas contas de verdade — a fazenda sempre
+// transfere um valor único pra XP; a divisão é só uma planilha à parte).
 // ============================================================
 
 import { useMemo, useState } from 'react'
@@ -20,6 +22,8 @@ import { applyFilters, computeCashFlow, computeCategoryBreakdown } from '@/engin
 import { useTransactions } from '@/lib/hooks/useTransactions'
 import { useTransactionsSince } from '@/lib/hooks/useTransactionsSince'
 import { useNetWorth } from '@/lib/hooks/useNetWorth'
+import { useXpSplit } from '@/lib/hooks/useXpSplit'
+import { latestXpSplit } from '@/lib/db/xpSplit'
 import { useUser } from '@/lib/UserContext'
 import { formatCurrency, formatMonth, monthRange } from '@/lib/format'
 
@@ -35,6 +39,7 @@ export function FazendaSplit() {
   const { transactions, loading: txLoading, handleUpdate, refetch } = useTransactions(month, userId)
   const { transactions: seriesTxs, loading: seriesLoading } = useTransactionsSince(FAZENDA_START_MONTH, userId)
   const { enrichedAccounts, loading: nwLoading } = useNetWorth(userId, month)
+  const { history: xpSplitHistory, loading: xpSplitLoading } = useXpSplit(userId)
 
   const [selectedCategory, setSelectedCategory] = useState<{ id: string; name: string } | null>(null)
 
@@ -49,18 +54,19 @@ export function FazendaSplit() {
   const personalShare = pct(pers.expenses, totalExpense)
 
   // ── Investimentos XP: pessoal vs profissional ─────────────────
+  // Saldo total vem da conta única faz-acc-xp; a divisão pessoal/profissional
+  // usa a proporção do último lançamento em fazenda_xp_split até o mês.
   const xp = useMemo(() => {
     const xpAccounts = enrichedAccounts.filter(
       (a) => a.is_investment && (a.custodian ?? '').toUpperCase() === 'XP',
     )
-    const bucket = (kind: 'pessoal' | 'profissional') =>
-      xpAccounts
-        .filter((a) => `${a.id} ${a.name}`.toLowerCase().includes(kind))
-        .reduce((s, a) => s + a.latestBalance, 0)
-    const pessoal = bucket('pessoal')
-    const profissional = bucket('profissional')
-    return { pessoal, profissional, total: pessoal + profissional, has: xpAccounts.length > 0 }
-  }, [enrichedAccounts])
+    const total = xpAccounts.reduce((s, a) => s + a.latestBalance, 0)
+    const split = latestXpSplit(xpSplitHistory, month)
+    const splitTotal = split ? split.personal + split.professional : 0
+    const pessoal = split && splitTotal > 0 ? total * (split.personal / splitTotal) : total
+    const profissional = split && splitTotal > 0 ? total * (split.professional / splitTotal) : 0
+    return { pessoal, profissional, total, has: xpAccounts.length > 0, splitMonth: split?.month }
+  }, [enrichedAccounts, xpSplitHistory, month])
 
   // ── Série mensal: despesa profissional vs pessoal ─────────────
   const series = useMemo(() => {
@@ -135,7 +141,7 @@ export function FazendaSplit() {
       </div>
 
       {/* ── Investimentos XP divididos ───────────────────────── */}
-      {!nwLoading && xp.has && (
+      {!nwLoading && !xpSplitLoading && xp.has && (
         <Card padding="md">
           <CardTitle>Investimentos XP</CardTitle>
           <div className="grid grid-cols-3 gap-4 mt-3">
@@ -143,7 +149,12 @@ export function FazendaSplit() {
             <Stat label="Pessoal" value={xp.pessoal} />
             <Stat label="Total" value={xp.total} bold />
           </div>
-          <p className="text-xs text-gray-400 mt-3">Saldo até {formatMonth(month)}</p>
+          <p className="text-xs text-gray-400 mt-3">
+            Saldo até {formatMonth(month)}
+            {xp.splitMonth
+              ? ` · divisão pessoal/profissional lançada em ${formatMonth(xp.splitMonth)}`
+              : ' · divisão pessoal/profissional ainda não lançada (ver Checklist)'}
+          </p>
         </Card>
       )}
 

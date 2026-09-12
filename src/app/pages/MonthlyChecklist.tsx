@@ -5,6 +5,7 @@ import { formatMonth } from '@/lib/format'
 import { useUser } from '@/lib/UserContext'
 import { useMonthlyStatus } from '@/lib/hooks/useMonthlyStatus'
 import { BalanceEntryModal } from '@/components/checklist/BalanceEntryModal'
+import { XpSplitModal } from '@/components/checklist/XpSplitModal'
 
 /** Last N months as YYYY-MM-01 values, most recent first */
 function recentMonths(n = 6): string[] {
@@ -33,10 +34,11 @@ function StatusBadge({ done, label, onClick }: { done: boolean; label?: string; 
 }
 
 export function MonthlyChecklist() {
-  const { userId, userName } = useUser()
+  const { userId, userName, isFazenda } = useUser()
   const months = useMemo(() => recentMonths(6), [])
   const { statuses, loading, error, refetch } = useMonthlyStatus(userId, months)
   const [balanceMonth, setBalanceMonth] = useState<string | null>(null)
+  const [xpSplitMonth, setXpSplitMonth] = useState<string | null>(null)
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null)
 
   if (error) return (
@@ -62,6 +64,7 @@ export function MonthlyChecklist() {
                 <th className="pb-2">Cartão</th>
                 <th className="pb-2">Conta</th>
                 <th className="pb-2">Balanço</th>
+                {isFazenda && <th className="pb-2">Divisão XP</th>}
               </tr>
             </thead>
             <tbody>
@@ -93,10 +96,15 @@ export function MonthlyChecklist() {
                           )}
                         </div>
                       </td>
+                      {isFazenda && (
+                        <td className="py-3">
+                          <StatusBadge done={s.hasXpSplit} onClick={() => setXpSplitMonth(s.month)} />
+                        </td>
+                      )}
                     </tr>
                     {expanded && pendingCount > 0 && (
                       <tr className="bg-gray-50/60">
-                        <td colSpan={4} className="px-3 py-2.5">
+                        <td colSpan={isFazenda ? 5 : 4} className="px-3 py-2.5">
                           <p className="text-xs text-gray-400 mb-1.5">
                             Contas sem saldo lançado em {formatMonth(s.month)}:
                           </p>
@@ -123,6 +131,15 @@ export function MonthlyChecklist() {
           userId={userId}
           month={balanceMonth}
           onClose={() => setBalanceMonth(null)}
+          onSaved={refetch}
+        />
+      )}
+
+      {xpSplitMonth && (
+        <XpSplitModal
+          userId={userId}
+          month={xpSplitMonth}
+          onClose={() => setXpSplitMonth(null)}
           onSaved={refetch}
         />
       )}

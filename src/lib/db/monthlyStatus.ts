@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { fetchAccountBalanceHistory, computeLatestAccountBalances, isAccountActive } from './networth'
+import { fetchXpSplitHistory } from './xpSplit'
 
 export interface MonthlyStatus {
   month: string       // YYYY-MM-01
@@ -10,6 +11,8 @@ export interface MonthlyStatus {
   hasBalance: boolean
   /** Active accounts still missing a balance entry for this exact month. */
   missingBalanceAccounts: { id: string; name: string }[]
+  /** Fazenda only: whether the personal/professional XP split was recorded for this exact month. */
+  hasXpSplit: boolean
 }
 
 /**
@@ -30,7 +33,7 @@ export async function fetchMonthlyStatus(userId: string, months: string[]): Prom
   if (accErr) throw accErr
   const accounts = (accs ?? []) as { id: string; name: string }[]
 
-  const [cardRes, accountRes, history] = await Promise.all([
+  const [cardRes, accountRes, history, xpSplit] = await Promise.all([
     supabase
       .from('transactions')
       .select('statement_month')
@@ -47,6 +50,7 @@ export async function fetchMonthlyStatus(userId: string, months: string[]): Prom
       .neq('source', 'manual')
       .in('competency_month', months),
     fetchAccountBalanceHistory(userId),
+    userId === 'fazenda' ? fetchXpSplitHistory(userId) : Promise.resolve([]),
   ])
 
   if (cardRes.error) throw cardRes.error
@@ -54,6 +58,7 @@ export async function fetchMonthlyStatus(userId: string, months: string[]): Prom
 
   const cardMonths    = new Set((cardRes.data ?? []).map((r: any) => r.statement_month as string))
   const accountMonths = new Set((accountRes.data ?? []).map((r: any) => r.competency_month as string))
+  const xpSplitMonths = new Set(xpSplit.map((r) => r.month))
 
   return months.map((month) => {
     const { entries } = computeLatestAccountBalances(history, month)
@@ -71,6 +76,7 @@ export async function fetchMonthlyStatus(userId: string, months: string[]): Prom
       hasAccount: accountMonths.has(month),
       hasBalance: missing.length === 0,
       missingBalanceAccounts: missing.map((a) => ({ id: a.id, name: a.name })),
+      hasXpSplit: userId === 'fazenda' ? xpSplitMonths.has(month) : true,
     }
   })
 }
