@@ -145,7 +145,7 @@ export function computeCashFlow(transactions: Transaction[]): CashFlowSummary {
  * Shared grouping logic behind computeCategoryBreakdown/computeIncomeCategoryBreakdown.
  * Returns sorted by total descending.
  */
-function buildCategoryBreakdown(txs: Transaction[]): CategoryBreakdown[] {
+export function buildCategoryBreakdown(txs: Transaction[]): CategoryBreakdown[] {
   const map = new Map<string, CategoryBreakdown>()
   const total = txs.reduce((sum, tx) => sum + tx.amount, 0)
 

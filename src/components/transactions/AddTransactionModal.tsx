@@ -13,6 +13,9 @@ import { formatMonth } from '@/lib/format'
 import { filterCategories } from '@/lib/db/categories'
 import { CategorySelect } from '@/components/ui/CategorySelect'
 
+// Categoria "Particular" (fazenda) é sempre pessoal — ver TransactionRow.tsx.
+const PARTICULAR_CATEGORY_ID = 'faz-cat-particular'
+
 interface Props {
   userId: string
   accounts: AccountRow[]
@@ -222,7 +225,10 @@ export function AddTransactionModal({ userId, accounts, cards, categories, onClo
           <CategorySelect
             inputClassName={inputCls}
             value={categoryId}
-            onChange={setCategoryId}
+            onChange={(id) => {
+              setCategoryId(id)
+              if (id === PARTICULAR_CATEGORY_ID) setContext('personal')
+            }}
             categories={filterCategories(categories, kind === 'income' ? 'income' : 'expense')}
             placeholder="— sem categoria —"
           />
@@ -232,17 +238,22 @@ export function AddTransactionModal({ userId, accounts, cards, categories, onClo
         <div>
           <label className={labelCls}>Contexto</label>
           <div className="flex bg-gray-100 rounded-xl p-0.5 text-xs">
-            {(['personal', 'professional'] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setContext(v)}
-                className={`flex-1 py-1.5 rounded-lg transition-colors font-medium ${
-                  context === v ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'
-                }`}
-              >
-                {v === 'personal' ? 'Pessoal' : 'Profissional'}
-              </button>
-            ))}
+            {(['personal', 'professional'] as const).map((v) => {
+              const locked = categoryId === PARTICULAR_CATEGORY_ID
+              return (
+                <button
+                  key={v}
+                  onClick={() => !locked && setContext(v)}
+                  disabled={locked}
+                  title={locked ? 'Categoria Particular é sempre pessoal' : undefined}
+                  className={`flex-1 py-1.5 rounded-lg transition-colors font-medium disabled:cursor-not-allowed ${
+                    context === v ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'
+                  }`}
+                >
+                  {v === 'personal' ? 'Pessoal' : 'Profissional'}
+                </button>
+              )
+            })}
           </div>
         </div>
 

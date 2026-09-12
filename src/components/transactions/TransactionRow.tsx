@@ -9,6 +9,11 @@ import { filterCategories } from '@/lib/db/categories'
 import { CategorySelect } from '@/components/ui/CategorySelect'
 import { useUser } from '@/lib/UserContext'
 
+// Categoria "Particular" (fazenda) é sempre pessoal — travado na UI pra não
+// repetir a inconsistência achada nos dados migrados (categoria Particular
+// com context=professional).
+const PARTICULAR_CATEGORY_ID = 'faz-cat-particular'
+
 interface Category {
   id: string
   name: string
@@ -43,6 +48,11 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
     tx.type === 'transfer' || tx.type === 'credit_card_payment'
   )
   const rowRef = useRef<HTMLDivElement>(null)
+
+  function handleCategoryChange(id: string) {
+    setCategoryId(id)
+    if (id === PARTICULAR_CATEGORY_ID) setContext('personal')
+  }
 
   // Close on click outside — cancela a edição SEM salvar. Só o botão
   // "Salvar" persiste; selecionar categoria/split e clicar fora descarta.
@@ -184,15 +194,17 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
                     className="flex-1 min-w-0"
                     inputClassName="text-xs border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
                     value={categoryId}
-                    onChange={setCategoryId}
+                    onChange={handleCategoryChange}
                     categories={filteredCategories}
                     placeholder="Sem categoria"
                     autoFocus={!isTransfer}
                   />
 
                   <select
-                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50 disabled:cursor-not-allowed"
                     value={context}
+                    disabled={categoryId === PARTICULAR_CATEGORY_ID}
+                    title={categoryId === PARTICULAR_CATEGORY_ID ? 'Categoria Particular é sempre pessoal' : undefined}
                     onChange={(e) => setContext(e.target.value as typeof context)}
                   >
                     <option value="personal">Pessoal</option>

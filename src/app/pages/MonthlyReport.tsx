@@ -13,8 +13,8 @@ import { Card, CardTitle } from '@/components/ui/Card'
 import { Amount } from '@/components/ui/Amount'
 import { CategoryList } from '@/components/reports/CategoryList'
 import { CategoryTransactionsModal } from '@/components/transactions/CategoryTransactionsModal'
-import { applyFilters, isCountableExpense, isCountableIncome } from '@/engine/CashFlowEngine'
-import { computeMonthlyReport } from '@/engine/MonthlyReportEngine'
+import { applyFilters } from '@/engine/CashFlowEngine'
+import { computeMonthlyReport, isReportExpense, isReportIncome } from '@/engine/MonthlyReportEngine'
 import { exportMonthlyReportToExcel } from '@/lib/exportMonthlyReport'
 import { useTransactions } from '@/lib/hooks/useTransactions'
 import { useUser } from '@/lib/UserContext'
@@ -38,7 +38,13 @@ export function MonthlyReport() {
   const [exporting, setExporting] = useState(false)
   const [selected, setSelected] = useState<Selected | null>(null)
 
-  const monthTxs = useMemo(() => applyFilters(transactions, { month }), [transactions, month])
+  // include_investments: a aplicação automática do Sicredi (investment_contribution/
+  // withdrawal) precisa aparecer aqui pro financeiro, mesmo saindo do fluxo de
+  // caixa "de verdade" (Dashboard/Transações) — ver MonthlyReportEngine.
+  const monthTxs = useMemo(
+    () => applyFilters(transactions, { month, include_investments: true }),
+    [transactions, month],
+  )
   const report = useMemo(() => computeMonthlyReport(monthTxs), [monthTxs])
   const section = report[scope]
 
@@ -52,7 +58,7 @@ export function MonthlyReport() {
 
   const selectedTxs = useMemo(() => {
     if (!selected) return []
-    const directionFilter = selected.direction === 'despesas' ? isCountableExpense : isCountableIncome
+    const directionFilter = selected.direction === 'despesas' ? isReportExpense : isReportIncome
     return scopeTxs.filter(
       (tx) => directionFilter(tx) && (tx.category_id ?? '__uncategorized__') === selected.categoryId,
     )
