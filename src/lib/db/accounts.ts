@@ -94,10 +94,11 @@ export async function fetchCards(userId: string, month: string): Promise<CardRow
       .order('name'),
     supabase
       .from('transactions')
-      .select('credit_card_id, amount, direction')
+      .select('credit_card_id, amount, direction, type')
       .eq('user_id', userId)
       .eq('statement_month', month)
-      .not('credit_card_id', 'is', null),
+      .not('credit_card_id', 'is', null)
+      .neq('type', 'credit_card_payment'),
   ])
 
   if (cardsRes.error) throw cardsRes.error
@@ -105,6 +106,9 @@ export async function fetchCards(userId: string, month: string): Promise<CardRow
   // Build totals map from actual transactions.
   // Expenses add to the invoice total; income (refunds/credits) reduce it —
   // matches CardTransactionsModal's "Total fatura" calculation.
+  // credit_card_payment excluded: it's the settlement mirror (e.g. "Pag Fat
+  // Deb Cc"), not real purchase/refund activity — counting it here would
+  // shrink the invoice by the payment itself.
   const totalsMap = new Map<string, number>()
   for (const tx of txRes.data ?? []) {
     const cid = tx.credit_card_id as string

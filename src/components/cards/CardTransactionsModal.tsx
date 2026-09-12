@@ -67,10 +67,12 @@ export function CardTransactionsModal({ card, month, onClose }: Props) {
     }
   }, [load])
 
-  // Expenses add to the invoice total; income (refunds/credits) reduce it
-  const total = transactions.reduce(
-    (s, t) => t.direction === 'expense' ? s + t.amount : s - t.amount, 0
-  )
+  // Expenses add to the invoice total; income (refunds/credits) reduce it.
+  // credit_card_payment (o espelho do pagamento da fatura, ex.: "Pag Fat Deb
+  // Cc") fica fora — não é compra/estorno real, ver accounts.ts/fetchCards.
+  const total = transactions
+    .filter((t) => t.type !== 'credit_card_payment')
+    .reduce((s, t) => t.direction === 'expense' ? s + t.amount : s - t.amount, 0)
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>

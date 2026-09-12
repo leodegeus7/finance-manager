@@ -111,7 +111,9 @@ export function Transactions() {
       group.transactions.push(tx)
     }
     const groupTotal = (g: { transactions: typeof filtered }) =>
-      g.transactions.reduce((s, t) => (t.direction === 'expense' ? s + t.amount : s - t.amount), 0)
+      g.transactions
+        .filter((t) => t.type !== 'credit_card_payment')
+        .reduce((s, t) => (t.direction === 'expense' ? s + t.amount : s - t.amount), 0)
     return [...map.values()].sort((a, b) => {
       if (a.month !== b.month) return b.month.localeCompare(a.month)
       return groupTotal(b) - groupTotal(a)

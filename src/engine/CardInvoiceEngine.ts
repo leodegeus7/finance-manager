@@ -91,7 +91,9 @@ export function computeCardInvoiceSeries(transactions: Transaction[], months: st
 
   for (const tx of transactions) {
     const month = tx.statement_month
-    if (!month) continue
+    // credit_card_payment é o espelho do pagamento da fatura (ex.: "Pag Fat
+    // Deb Cc"), não compra/estorno real — não deve mexer no total da fatura.
+    if (!month || tx.type === 'credit_card_payment') continue
     const signed = tx.direction === 'expense' ? tx.amount : -tx.amount
 
     const entry = getEntry(month)

@@ -25,10 +25,11 @@ export function CardInvoiceGroup({ card, month, transactions, categories, accoun
   const [expanded, setExpanded] = useState(false)
 
   // Expenses add to the invoice total; income (refunds/credits) reduce it —
-  // same calculation as CardTransactionsModal.
-  const total = transactions.reduce(
-    (s, t) => (t.direction === 'expense' ? s + t.amount : s - t.amount), 0,
-  )
+  // same calculation as CardTransactionsModal. credit_card_payment (o
+  // espelho do pagamento da fatura) fica fora, não é compra/estorno real.
+  const total = transactions
+    .filter((t) => t.type !== 'credit_card_payment')
+    .reduce((s, t) => (t.direction === 'expense' ? s + t.amount : s - t.amount), 0)
 
   const dates = transactions.map((t) => t.date).sort()
   const minDate = dates[0]
