@@ -28,7 +28,7 @@ import { useTransactionsSince } from '@/lib/hooks/useTransactionsSince'
 import { useState, useEffect } from 'react'
 
 export function NetWorth() {
-  const { userId, userName, month, isFazenda } = useUser()
+  const { userId, userName, month, isFazenda, isReadOnly } = useUser()
   const { timeline, assets, enrichedAccounts, loading, error, reload } = useNetWorth(userId, month)
   const { transactions: incomeTxs } = useTransactionsSince('2026-04-01', userId)
   const investments = useInvestments(userId, month)
@@ -218,15 +218,17 @@ export function NetWorth() {
             <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">
               Investimentos & Ativos
             </h2>
-            <button
-              onClick={() => setShowAddAsset((v) => !v)}
-              className="text-xs text-blue-600 font-medium hover:underline"
-            >
-              {showAddAsset ? 'Cancelar' : '+ Adicionar'}
-            </button>
+            {!isReadOnly && (
+              <button
+                onClick={() => setShowAddAsset((v) => !v)}
+                className="text-xs text-blue-600 font-medium hover:underline"
+              >
+                {showAddAsset ? 'Cancelar' : '+ Adicionar'}
+              </button>
+            )}
           </div>
 
-          {showAddAsset && (
+          {!isReadOnly && showAddAsset && (
             <Card padding="md" className="mb-2">
               <p className="text-xs font-medium text-gray-500 mb-3">Novo ativo</p>
               <div className="grid grid-cols-2 gap-3 mb-3">
@@ -327,7 +329,11 @@ export function NetWorth() {
                         <p className="text-xs text-blue-500 mt-0.5">Compartilhado com o casal</p>
                       )}
                     </div>
-                    {editingAssetId === asset.id ? (
+                    {isReadOnly ? (
+                      <span className="text-base font-bold tabular-nums text-gray-900">
+                        {formatCurrency(asset.current_value)}
+                      </span>
+                    ) : editingAssetId === asset.id ? (
                       <div className="flex items-center gap-1.5">
                         <input
                           type="text"

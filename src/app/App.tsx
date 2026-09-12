@@ -1,3 +1,4 @@
+import { useState, FormEvent } from 'react'
 import { Routes, Route, NavLink } from 'react-router-dom'
 import clsx from 'clsx'
 import { Dashboard }     from './pages/Dashboard'
@@ -48,47 +49,60 @@ function monthLabel(iso: string): string {
   return `${MONTH_FULL_PT[m - 1]} ${y}`
 }
 
-// ── Welcome / user selection screen ──────────────────────────
+// ── Welcome / login screen ────────────────────────────────────
+// Não é autenticação de verdade — ver aviso em UserContext.tsx. Só evita
+// abrir o perfil errado por engano; uma palavra-chave decide o perfil e
+// se o acesso é só leitura (Ary → fazenda, view only).
 function WelcomeScreen() {
-  const { setUserId } = useUser()
+  const { login } = useUser()
+  const [passphrase, setPassphrase] = useState('')
+  const [error, setError] = useState(false)
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!login(passphrase)) {
+      setError(true)
+      setPassphrase('')
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-10">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-8">
       <div className="text-center">
         <h1 className="text-3xl font-bold text-gray-900">Finance Manager</h1>
-        <p className="text-gray-400 mt-2 text-sm">Quem está acessando?</p>
+        <p className="text-gray-400 mt-2 text-sm">Digite a palavra-chave de acesso</p>
       </div>
 
-      <div className="flex gap-4">
-        {([
-          { id: 'leo',     name: 'Leonardo', letter: 'L' },
-          { id: 'murilo',  name: 'Murilo',   letter: 'M' },
-          { id: 'fazenda', name: 'Fazenda',  letter: 'F' },
-        ] as const).map(({ id, name, letter }) => (
-          <button
-            key={id}
-            onClick={() => setUserId(id)}
-            className="w-44 py-8 rounded-2xl bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 transition-all flex flex-col items-center gap-3 group"
-          >
-            {/* Avatar */}
-            <div className="w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center text-white text-xl font-bold group-hover:scale-105 transition-transform">
-              {letter}
-            </div>
-            <span className="text-sm font-semibold text-gray-900">
-              {name}
-            </span>
-          </button>
-        ))}
-      </div>
+      <form onSubmit={handleSubmit} className="flex flex-col items-center gap-3">
+        <input
+          type="password"
+          autoFocus
+          value={passphrase}
+          onChange={(e) => { setPassphrase(e.target.value); setError(false) }}
+          className={clsx(
+            'w-64 text-center text-sm border rounded-xl px-4 py-3 bg-white focus:outline-none focus:ring-2 transition-colors',
+            error ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-gray-300',
+          )}
+          placeholder="palavra-chave"
+        />
+        {error && <p className="text-xs text-red-600">Palavra-chave não reconhecida</p>}
+        <button
+          type="submit"
+          className="w-64 bg-gray-900 text-white text-sm font-medium py-2.5 rounded-xl hover:bg-gray-700 transition-colors"
+        >
+          Entrar
+        </button>
+      </form>
     </div>
   )
 }
 
 // ── Sidebar ───────────────────────────────────────────────────
 function Sidebar() {
-  const { userName, isFazenda, clearUser, month, setMonth } = useUser()
+  const { userName, isFazenda, isReadOnly, clearUser, month, setMonth } = useUser()
   const months = recentMonths()
   const nav = navFor(isFazenda)
+  const displayName = isReadOnly ? 'Ary' : userName
 
   return (
     <aside className="w-56 shrink-0 bg-white border-r border-gray-100 flex flex-col py-6 px-4 fixed h-full z-10">
@@ -131,15 +145,20 @@ function Sidebar() {
 
         {/* User indicator + switch button */}
         <div className="flex items-center justify-between px-1 py-2 border-t border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-gray-900 flex items-center justify-center text-white text-xs font-bold">
-              {userName[0]}
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-6 h-6 rounded-full bg-gray-900 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              {displayName[0]}
             </div>
-            <span className="text-xs font-medium text-gray-700">{userName}</span>
+            <span className="text-xs font-medium text-gray-700 truncate">{displayName}</span>
+            {isReadOnly && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 shrink-0">
+                leitura
+              </span>
+            )}
           </div>
           <button
             onClick={clearUser}
-            className="text-xs text-gray-400 hover:text-gray-700 transition-colors"
+            className="text-xs text-gray-400 hover:text-gray-700 transition-colors shrink-0"
             title="Trocar usuário"
           >
             Trocar

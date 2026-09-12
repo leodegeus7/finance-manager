@@ -28,7 +28,7 @@ import { CardRow } from '@/lib/db/accounts'
 import { OwedSummary } from '@/components/transactions/OwedSummary'
 
 export function Transactions() {
-  const { userId, userName, month, setMonth, isFazenda } = useUser()
+  const { userId, userName, month, setMonth, isFazenda, isReadOnly } = useUser()
   const { transactions, loading, error, handleUpdate, refetch } = useTransactions(month, userId)
   const { categories } = useCategories()
   const { accounts, cards } = useAccounts(userId, month)
@@ -133,12 +133,14 @@ export function Transactions() {
           <h1 className="text-2xl font-bold text-gray-900">Transações</h1>
           <p className="text-sm text-gray-400 mt-0.5">{userName} · {formatMonth(month)}</p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="mt-1 bg-gray-900 text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-700 transition-colors"
-        >
-          + Nova transação
-        </button>
+        {!isReadOnly && (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="mt-1 bg-gray-900 text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-700 transition-colors"
+          >
+            + Nova transação
+          </button>
+        )}
       </div>
 
       {/* Summary strip */}
@@ -167,30 +169,32 @@ export function Transactions() {
       {!isFazenda && <OwedSummary transactions={filtered} payerUserId={userId} />}
 
       {/* Import CTA — click or drag-and-drop directly */}
-      <div
-        className={`border-2 border-dashed rounded-2xl p-6 text-center transition-colors cursor-pointer ${
-          isDragging
-            ? 'border-blue-400 bg-blue-50'
-            : 'border-gray-200 hover:border-gray-300'
-        }`}
-        onClick={() => setShowImport(true)}
-        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true) }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          setIsDragging(false)
-          const f = e.dataTransfer.files[0]
-          if (f) { setDragFile(f); setShowImport(true) }
-        }}
-      >
-        <p className={`text-sm font-medium ${isDragging ? 'text-blue-600' : 'text-gray-600'}`}>
-          {isDragging ? 'Solte o arquivo aqui' : 'Importar extrato'}
-        </p>
-        <p className="text-xs text-gray-400 mt-1">
-          Arraste um arquivo ou clique · CSV · Nubank, C6 · PDF · Inter · OFX/CSV · Sicredi
-        </p>
-      </div>
+      {!isReadOnly && (
+        <div
+          className={`border-2 border-dashed rounded-2xl p-6 text-center transition-colors cursor-pointer ${
+            isDragging
+              ? 'border-blue-400 bg-blue-50'
+              : 'border-gray-200 hover:border-gray-300'
+          }`}
+          onClick={() => setShowImport(true)}
+          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true) }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setIsDragging(false)
+            const f = e.dataTransfer.files[0]
+            if (f) { setDragFile(f); setShowImport(true) }
+          }}
+        >
+          <p className={`text-sm font-medium ${isDragging ? 'text-blue-600' : 'text-gray-600'}`}>
+            {isDragging ? 'Solte o arquivo aqui' : 'Importar extrato'}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Arraste um arquivo ou clique · CSV · Nubank, C6 · PDF · Inter · OFX/CSV · Sicredi
+          </p>
+        </div>
+      )}
 
       {showImport && (
         <ImportModal

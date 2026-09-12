@@ -6,9 +6,10 @@ interface UserContextValue {
   userId:     UserId
   userName:   string
   isFazenda:  boolean          // farm ledger — hides couple-only features
-  hasChosen:  boolean          // false = show welcome/selection screen
-  setUserId:  (id: UserId) => void
-  clearUser:  () => void       // go back to selection screen
+  isReadOnly: boolean          // true for the "ary" passphrase — view only, no mutations
+  hasChosen:  boolean          // false = show welcome/login screen
+  login:      (passphrase: string) => boolean   // returns false if not recognized
+  clearUser:  () => void       // go back to the login screen
   month:      string           // YYYY-MM-01
   setMonth:   (m: string) => void
 }
@@ -17,6 +18,16 @@ const USERS: Record<UserId, string> = {
   leo:     'Leonardo',
   murilo:  'Murilo',
   fazenda: 'Fazenda',
+}
+
+// Palavra-chave → perfil. NÃO é autenticação de verdade (ver CLAUDE.md — RLS
+// hoje é "allow all"): só evita acesso casual/por engano, não bloqueia
+// alguém com acesso técnico à API do Supabase.
+const PASSPHRASES: Record<string, { userId: UserId; readOnly: boolean }> = {
+  fazenda:  { userId: 'fazenda', readOnly: false },
+  murilo:   { userId: 'murilo',  readOnly: false },
+  leonardo: { userId: 'leo',     readOnly: false },
+  ary:      { userId: 'fazenda', readOnly: true },
 }
 
 function isUserId(v: string | null): v is UserId {
@@ -29,14 +40,15 @@ function currentMonthISO(): string {
 }
 
 const UserContext = createContext<UserContextValue>({
-  userId:    'leo',
-  userName:  'Leonardo',
-  isFazenda: false,
-  hasChosen: false,
-  setUserId: () => {},
-  clearUser: () => {},
-  month:     currentMonthISO(),
-  setMonth:  () => {},
+  userId:     'leo',
+  userName:   'Leonardo',
+  isFazenda:  false,
+  isReadOnly: false,
+  hasChosen:  false,
+  login:      () => false,
+  clearUser:  () => {},
+  month:      currentMonthISO(),
+  setMonth:   () => {},
 })
 
 export function useUser() {
@@ -49,7 +61,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return isUserId(stored) ? stored : 'leo'
   })
 
-  // hasChosen: true if user already picked a profile (saved in localStorage)
+  const [isReadOnly, setIsReadOnly] = useState<boolean>(
+    () => localStorage.getItem('finance_read_only') === '1',
+  )
+
+  // hasChosen: true if a passphrase was already accepted (saved in localStorage)
   const [hasChosen, setHasChosen] = useState<boolean>(
     () => !!localStorage.getItem('finance_user_id'),
   )
@@ -58,15 +74,22 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return localStorage.getItem('finance_month') ?? currentMonthISO()
   })
 
-  function setUserId(id: UserId) {
-    setUserIdState(id)
+  function login(passphrase: string): boolean {
+    const match = PASSPHRASES[passphrase.trim().toLowerCase()]
+    if (!match) return false
+
+    setUserIdState(match.userId)
+    setIsReadOnly(match.readOnly)
     setHasChosen(true)
-    localStorage.setItem('finance_user_id', id)
+    localStorage.setItem('finance_user_id', match.userId)
+    localStorage.setItem('finance_read_only', match.readOnly ? '1' : '0')
+    return true
   }
 
   function clearUser() {
     setHasChosen(false)
     localStorage.removeItem('finance_user_id')
+    localStorage.removeItem('finance_read_only')
   }
 
   function setMonth(m: string) {
@@ -75,7 +98,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <UserContext.Provider value={{ userId, userName: USERS[userId], isFazenda: userId === 'fazenda', hasChosen, setUserId, clearUser, month, setMonth }}>
+    <UserContext.Provider
+      value={{
+        userId, userName: USERS[userId], isFazenda: userId === 'fazenda', isReadOnly,
+        hasChosen, login, clearUser, month, setMonth,
+      }}
+    >
       {children}
     </UserContext.Provider>
   )

@@ -34,7 +34,7 @@ function StatusBadge({ done, label, onClick }: { done: boolean; label?: string; 
 }
 
 export function MonthlyChecklist() {
-  const { userId, userName, isFazenda } = useUser()
+  const { userId, userName, isFazenda, isReadOnly } = useUser()
   const months = useMemo(() => recentMonths(6), [])
   const { statuses, loading, error, refetch } = useMonthlyStatus(userId, months)
   const [balanceMonth, setBalanceMonth] = useState<string | null>(null)
@@ -83,7 +83,7 @@ export function MonthlyChecklist() {
                           <StatusBadge
                             done={s.hasBalance}
                             label={s.hasBalance ? 'Feito' : `${pendingCount} pendente${pendingCount !== 1 ? 's' : ''}`}
-                            onClick={() => setBalanceMonth(s.month)}
+                            onClick={isReadOnly ? undefined : () => setBalanceMonth(s.month)}
                           />
                           {pendingCount > 0 && (
                             <button
@@ -98,7 +98,7 @@ export function MonthlyChecklist() {
                       </td>
                       {isFazenda && (
                         <td className="py-3">
-                          <StatusBadge done={s.hasXpSplit} onClick={() => setXpSplitMonth(s.month)} />
+                          <StatusBadge done={s.hasXpSplit} onClick={isReadOnly ? undefined : () => setXpSplitMonth(s.month)} />
                         </td>
                       )}
                     </tr>

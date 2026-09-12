@@ -93,7 +93,7 @@ interface DeleteState {
 const IDLE: DeleteState = { step: 0, id: '', expectedName: '', input: '' }
 
 export function AccountsCards() {
-  const { userId, userName, month } = useUser()
+  const { userId, userName, month, isReadOnly } = useUser()
   const { accounts, cards, loading, error, refetch } = useAccounts(userId, month)
 
   // Latest balances from history
@@ -212,17 +212,19 @@ export function AccountsCards() {
                 Total: {formatCurrency(totalBalance)}
               </span>
             )}
-            <button
-              onClick={() => setShowAddAccount((v) => !v)}
-              className="text-xs text-blue-600 font-medium hover:underline"
-            >
-              {showAddAccount ? 'Cancelar' : '+ Adicionar'}
-            </button>
+            {!isReadOnly && (
+              <button
+                onClick={() => setShowAddAccount((v) => !v)}
+                className="text-xs text-blue-600 font-medium hover:underline"
+              >
+                {showAddAccount ? 'Cancelar' : '+ Adicionar'}
+              </button>
+            )}
           </div>
         </div>
 
         {/* Add account form */}
-        {showAddAccount && (
+        {!isReadOnly && showAddAccount && (
           <Card padding="md" className="mb-3">
             <p className="text-xs font-medium text-gray-500 mb-3">Nova conta</p>
             <div className="grid grid-cols-2 gap-3 mb-3">
@@ -282,17 +284,25 @@ export function AccountsCards() {
                   <div>
                     <p className="text-sm font-semibold text-gray-900">{acc.name}</p>
                     <p className="text-xs text-gray-400 mt-0.5 capitalize">{acc.bank}</p>
-                    <button
-                      onClick={() => toggleInvestment(acc)}
-                      className={`mt-1.5 text-[11px] font-medium px-2 py-0.5 rounded-md border transition-colors ${
-                        acc.is_investment
-                          ? 'bg-blue-50 border-blue-200 text-blue-700'
-                          : 'border-gray-200 text-gray-400 hover:border-gray-300'
-                      }`}
-                      title="Marcar como conta de investimento (entra no rendimento)"
-                    >
-                      {acc.is_investment ? `✓ Investimento${acc.custodian && acc.custodian !== acc.name ? ` · ${acc.custodian}` : ''}` : 'Investimento'}
-                    </button>
+                    {isReadOnly ? (
+                      acc.is_investment && (
+                        <span className="mt-1.5 inline-block text-[11px] font-medium px-2 py-0.5 rounded-md border bg-blue-50 border-blue-200 text-blue-700">
+                          ✓ Investimento{acc.custodian && acc.custodian !== acc.name ? ` · ${acc.custodian}` : ''}
+                        </span>
+                      )
+                    ) : (
+                      <button
+                        onClick={() => toggleInvestment(acc)}
+                        className={`mt-1.5 text-[11px] font-medium px-2 py-0.5 rounded-md border transition-colors ${
+                          acc.is_investment
+                            ? 'bg-blue-50 border-blue-200 text-blue-700'
+                            : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                        }`}
+                        title="Marcar como conta de investimento (entra no rendimento)"
+                      >
+                        {acc.is_investment ? `✓ Investimento${acc.custodian && acc.custodian !== acc.name ? ` · ${acc.custodian}` : ''}` : 'Investimento'}
+                      </button>
+                    )}
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
@@ -302,7 +312,7 @@ export function AccountsCards() {
                       <p className="text-xs text-gray-400 mt-0.5">último saldo registrado</p>
                     </div>
                     {/* Delete button — only shows when not in delete flow for this account */}
-                    {accDel.id !== acc.id && (
+                    {!isReadOnly && accDel.id !== acc.id && (
                       <button
                         onClick={() => setAccDel({ step: 1, id: acc.id, expectedName: acc.name, input: '' })}
                         className="text-gray-300 hover:text-red-400 transition-colors text-lg leading-none"
@@ -315,7 +325,7 @@ export function AccountsCards() {
                 </div>
 
                 {/* ── Delete confirmation (inline, multi-step) ── */}
-                {accDel.id === acc.id && (
+                {!isReadOnly && accDel.id === acc.id && (
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     {accDel.step === 1 && (
                       <div className="rounded-xl bg-red-50 border border-red-100 p-3">
@@ -394,16 +404,18 @@ export function AccountsCards() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Cartões de Crédito</h2>
-          <button
-            onClick={() => setShowAddCard((v) => !v)}
-            className="text-xs text-blue-600 font-medium hover:underline"
-          >
-            {showAddCard ? 'Cancelar' : '+ Adicionar'}
-          </button>
+          {!isReadOnly && (
+            <button
+              onClick={() => setShowAddCard((v) => !v)}
+              className="text-xs text-blue-600 font-medium hover:underline"
+            >
+              {showAddCard ? 'Cancelar' : '+ Adicionar'}
+            </button>
+          )}
         </div>
 
         {/* Add card form */}
-        {showAddCard && (
+        {!isReadOnly && showAddCard && (
           <Card padding="md" className="mb-3">
             <p className="text-xs font-medium text-gray-500 mb-3">Novo cartão</p>
             <div className="grid grid-cols-2 gap-3 mb-3">
@@ -461,7 +473,7 @@ export function AccountsCards() {
                     </div>
                     <div className="flex items-center gap-3">
                       <InvoiceBadge status={card.status} />
-                      {cardDel.id !== card.id && (
+                      {!isReadOnly && cardDel.id !== card.id && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -511,7 +523,7 @@ export function AccountsCards() {
 
                   <CardInvoiceSection cardId={card.id} currentMonth={month} />
 
-                  {card.status !== 'paid' && (
+                  {!isReadOnly && card.status !== 'paid' && (
                     <button
                       onClick={(e) => e.stopPropagation()}
                       className="mt-4 w-full text-sm font-medium text-blue-600 border border-blue-200 rounded-xl py-2 hover:bg-blue-50 transition-colors"
@@ -521,7 +533,7 @@ export function AccountsCards() {
                   )}
 
                   {/* ── Card delete confirmation ── */}
-                  {cardDel.id === card.id && (
+                  {!isReadOnly && cardDel.id === card.id && (
                     <div className="mt-3 pt-3 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
                       {cardDel.step === 1 && (
                         <div className="rounded-xl bg-red-50 border border-red-100 p-3">

@@ -7,6 +7,7 @@ import { formatCurrency, formatDate } from '@/lib/format'
 import { SplitEditor, splitBadge } from './SplitEditor'
 import { filterCategories } from '@/lib/db/categories'
 import { CategorySelect } from '@/components/ui/CategorySelect'
+import { useUser } from '@/lib/UserContext'
 
 interface Category {
   id: string
@@ -30,6 +31,7 @@ interface Props {
 }
 
 export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, onDelete }: Props) {
+  const { isReadOnly } = useUser()
   const [editing, setEditing] = useState(false)
   const [categoryId, setCategoryId] = useState(tx.category_id ?? '')
   const [context, setContext] = useState(tx.context)
@@ -111,12 +113,13 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
     <div
       ref={rowRef}
       className={clsx(
-        'group flex items-start gap-3 px-4 py-3 rounded-xl transition-colors cursor-pointer',
+        'group flex items-start gap-3 px-4 py-3 rounded-xl transition-colors',
+        !isReadOnly && 'cursor-pointer',
         editing ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-gray-50',
         isTransfer && !editing && 'opacity-60',
         isUncategorized && !editing && 'border-l-2 border-l-yellow-400',
       )}
-      onClick={() => !editing && setEditing(true)}
+      onClick={() => !editing && !isReadOnly && setEditing(true)}
     >
       {/* Date */}
       <span className="text-xs text-gray-400 tabular-nums w-10 shrink-0 mt-0.5">
@@ -301,7 +304,7 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
           {isExpense ? '-' : '+'}{formatCurrency(tx.amount)}
         </span>
 
-        {onDelete && (
+        {onDelete && !isReadOnly && (
           <button
             onClick={(e) => {
               e.stopPropagation()
