@@ -1,6 +1,12 @@
 // Modal de lançamento de balanço mensal — abre ao clicar em "Pendente"/"Feito"
 // na coluna Balanço do Checklist. Pré-carrega as contas ativas (com o último
 // saldo conhecido como sugestão) e permite adicionar outras contas da lista.
+//
+// A conta única XP da fazenda (faz-acc-xp) fica de fora daqui — seu saldo é
+// sempre pessoal + profissional, lançado via "Divisão XP" (upsertXpSplit),
+// que já grava o total aqui em account_balance_history. Editar os dois
+// lugares deixaria a soma dessincronizada do saldo real da conta.
+const DERIVED_ACCOUNT_IDS = new Set(['faz-acc-xp'])
 
 import { useState, useEffect } from 'react'
 import { AccountRow, fetchAccounts } from '@/lib/db/accounts'
@@ -28,7 +34,8 @@ export function BalanceEntryModal({ userId, month, onClose, onSaved }: Props) {
     setLoading(true)
     setError('')
     Promise.all([fetchAccounts(userId), fetchLatestAccountBalances(userId, month)])
-      .then(([accs, { entries }]) => {
+      .then(([allAccs, { entries }]) => {
+        const accs = allAccs.filter((a) => !DERIVED_ACCOUNT_IDS.has(a.id))
         setAccounts(accs)
 
         const active = accs.filter((a) => isAccountActive(entries.get(a.id), month))

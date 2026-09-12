@@ -1,4 +1,8 @@
 import { supabase } from '@/lib/supabase'
+import { upsertAccountBalance } from './networth'
+
+// Conta única criada pela migração 20260709_fazenda_xp_unify.sql
+const XP_ACCOUNT_ID = 'faz-acc-xp'
 
 export interface XpSplitRow {
   month: string   // YYYY-MM-01
@@ -25,6 +29,11 @@ export function latestXpSplit(history: XpSplitRow[], upToMonth: string): XpSplit
   return [...history].filter((r) => r.month <= upToMonth).sort((a, b) => b.month.localeCompare(a.month))[0]
 }
 
+/**
+ * Salva a divisão pessoal/profissional do mês E o saldo total da conta única
+ * XP (soma dos dois) — o Balanço não precisa ser lançado à parte pra essa
+ * conta, já que o total é sempre pessoal + profissional.
+ */
 export async function upsertXpSplit(
   userId: string,
   month: string,
@@ -38,4 +47,6 @@ export async function upsertXpSplit(
       { onConflict: 'user_id,month' },
     )
   if (error) throw error
+
+  await upsertAccountBalance(XP_ACCOUNT_ID, month, personal + professional)
 }
