@@ -25,6 +25,7 @@ import { useAccounts } from '@/lib/hooks/useAccounts'
 import { useUser } from '@/lib/UserContext'
 import { deleteTransaction } from '@/lib/db/transactions'
 import { CardRow } from '@/lib/db/accounts'
+import { exportTransactionsCsv, CsvSource } from '@/lib/exportTransactionsCsv'
 import { OwedSummary } from '@/components/transactions/OwedSummary'
 
 export function Transactions() {
@@ -121,6 +122,20 @@ export function Transactions() {
     })
   }, [filtered, cards])
 
+  // Exportação: o mês inteiro (sem os filtros da tela), incluindo transferências,
+  // pagamentos de fatura e aplicações — cada linha traz o tipo.
+  function handleExportCsv(source: CsvSource) {
+    const names: Record<string, string> = {}
+    for (const a of accounts) names[a.id] = a.name
+    for (const c of cards) names[c.id] = c.name
+    const monthTxs = applyFilters(transactions, {
+      month, include_transfers: true, include_cc_payments: true, include_investments: true,
+    })
+    if (!exportTransactionsCsv(monthTxs, month, source, names)) {
+      window.alert(`Sem transações de ${source === 'cartao' ? 'cartão' : 'conta'} neste mês.`)
+    }
+  }
+
   const accountTxs = useMemo(() => filtered.filter((t) => !t.credit_card_id), [filtered])
 
   if (error) return (
@@ -136,18 +151,34 @@ export function Transactions() {
           <h1 className="text-2xl font-bold text-gray-900">Transações</h1>
           <p className="text-sm text-gray-400 mt-0.5">{userName} · {formatMonth(month)}</p>
         </div>
-        {!isReadOnly && (
+        <div className="flex items-center gap-2 mt-1">
           <button
-            onClick={() => setShowAdd(true)}
-            className="mt-1 bg-gray-900 text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-700 transition-colors"
+            onClick={() => handleExportCsv('conta')}
+            disabled={loading}
+            className="text-sm font-medium text-gray-600 border border-gray-200 bg-white px-3 py-2 rounded-xl hover:bg-gray-50 disabled:opacity-40 transition-colors"
           >
-            + Nova transação
+            ↓ CSV conta
           </button>
-        )}
+          <button
+            onClick={() => handleExportCsv('cartao')}
+            disabled={loading}
+            className="text-sm font-medium text-gray-600 border border-gray-200 bg-white px-3 py-2 rounded-xl hover:bg-gray-50 disabled:opacity-40 transition-colors"
+          >
+            ↓ CSV cartão
+          </button>
+          {!isReadOnly && (
+            <button
+              onClick={() => setShowAdd(true)}
+              className="bg-gray-900 text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-gray-700 transition-colors"
+            >
+              + Nova transação
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Summary strip */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <Card padding="sm">
           <p className="text-xs text-gray-400">Receita</p>
           <p className="text-lg font-bold text-green-600 tabular-nums mt-0.5">
@@ -158,12 +189,6 @@ export function Transactions() {
           <p className="text-xs text-gray-400">Despesas</p>
           <p className="text-lg font-bold text-gray-900 tabular-nums mt-0.5">
             {formatCurrency(cashFlow.expenses)}
-          </p>
-        </Card>
-        <Card padding="sm">
-          <p className="text-xs text-gray-400">Saldo</p>
-          <p className={`text-lg font-bold tabular-nums mt-0.5 ${cashFlow.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {formatCurrency(cashFlow.balance)}
           </p>
         </Card>
       </div>
