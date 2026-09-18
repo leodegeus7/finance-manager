@@ -73,6 +73,7 @@ export function Transactions() {
       scope:   scopeFilter   !== 'all' ? scopeFilter   : undefined,
       include_transfers:   true,
       include_cc_payments: true,
+      include_investments: true,
     })
     if (sourceFilter === 'card')    txs = txs.filter((t) => !!t.credit_card_id)
     if (sourceFilter === 'account') txs = txs.filter((t) => !!t.account_id && !t.credit_card_id)

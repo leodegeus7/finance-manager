@@ -115,6 +115,7 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
 
   const isExpense = tx.direction === 'expense'
   const isTransfer = tx.type === 'transfer' || tx.type === 'credit_card_payment'
+  const isInvestment = tx.type === 'investment_contribution' || tx.type === 'investment_withdrawal'
   const isUncategorized = !tx.category_id && !isTransfer
   const categoryLabel = categories.find((c) => c.id === tx.category_id)?.name ?? null
   const filteredCategories = filterCategories(categories, tx.direction)
@@ -126,7 +127,7 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
         'group flex items-start gap-3 px-4 py-3 rounded-xl transition-colors',
         !isReadOnly && 'cursor-pointer',
         editing ? 'bg-blue-50 ring-1 ring-blue-200' : 'hover:bg-gray-50',
-        isTransfer && !editing && 'opacity-60',
+        (isTransfer || isInvestment) && !editing && 'opacity-60',
         isUncategorized && !editing && 'border-l-2 border-l-yellow-400',
       )}
       onClick={() => !editing && !isReadOnly && setEditing(true)}
@@ -260,6 +261,11 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
           </div>
         ) : (
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            {isInvestment && (
+              <span className="text-xs px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-400 font-medium">
+                {tx.type === 'investment_contribution' ? 'aplicação' : 'resgate'}
+              </span>
+            )}
             {categoryLabel ? (
               <span className="text-xs text-gray-500">{categoryLabel}</span>
             ) : (
