@@ -1,5 +1,10 @@
 # Finance Manager — Guia do Projeto
 
+Importação CLI por agente, incluindo subconjuntos aprovados e revisões de categoria/split:
+leia [scripts/reviewed-import.md](scripts/reviewed-import.md). Use `npm run import:file`;
+dry-run por padrão, `--export-review` para revisão privada e `--review ... --commit --confirm`
+para gravar somente identidades explicitamente aprovadas, com backup e readback.
+
 Aplicação de gestão financeira pessoal (e de casal) para **Leonardo (`leo`)** e
 **Murilo (`murilo`)**. Importa extratos/faturas de banco e cartão, classifica
 transações, calcula fluxo de caixa, patrimônio e a divisão de despesas do casal.
