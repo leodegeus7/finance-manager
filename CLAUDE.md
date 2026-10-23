@@ -397,12 +397,20 @@ abas `CONTA` + `CARTÃO` + `INVESTIMENTOS XP`, jun/2024→ago/2026) vira um seed
 [`scripts/parse_fazenda_xlsx.py`](scripts/parse_fazenda_xlsx.py) →
 [`20260708_fazenda_seed.sql`](supabase/migrations/20260708_fazenda_seed.sql) (~7 mil transações,
 contas Sicredi/Itaú, cartões Visa/Black, ~130 categorias, saldos). **Ordem de execução no SQL
-Editor:** primeiro `20260707`, depois `20260708`. Regras do parser (validadas contra os pivôs
+Editor:** primeiro `20260707`, depois `20260708` (já sai com o mês do vencimento; `20261023` é a
+correção para bancos semeados antes disso — idempotente). Regras do parser (validadas contra os pivôs
 `DADOS` da planilha):
 - **Competência = coluna `MÊS`** do usuário (parse robusto em `parse_mes`: `'M/YYYY'`, serial de
-  data, ou vazio→mês da data) — reproduz os fechamentos manuais. Cartão: `statement_month` = mês da
-  data da fatura (col "Cartão") — bate com o agrupamento dos `DADOS`. Saldos mensais usam o mês da
-  **data** (fim de mês real), não a competência.
+  data, ou vazio→mês da data) — reproduz os fechamentos manuais. Cartão: `statement_month` = **mês
+  do vencimento** (convenção do app do banco e do `SicrediCreditHandler`). A col "Cartão" da planilha
+  só agrupa as faturas — a partir de nov/2025 ela rotula pelo mês das compras (1 mês antes do
+  vencimento), então o mês é derivado da compra mais recente de cada fatura: até dia 10 → vence
+  naquele mês; depois → mês seguinte (Sicredi fecha ~dia 3–5, vence dia 15). Corrigido no banco pela
+  migração [`20261023_fazenda_card_due_month.sql`](supabase/migrations/20261023_fazenda_card_due_month.sql).
+  Saldos mensais usam o mês da **data** (fim de mês real), não a competência.
+- **Duplicatas conhecidas na planilha** (não removidas): Visa venc. set/2025 aparece 2× (rótulos
+  25/08 e 01/09, mesmas 60 compras) e Black venc. jan/2025 aparece 2× (rótulos 25/01/2025 e
+  24/12/2025).
 - `context = 'personal'` quando a categoria é **"Particular"**; senão `'professional'`.
 - **Overrides de tipo** (evitam inflar o fluxo): categoria `Sicredi Aplicação Automática` →
   `investment_*` (as varreduras diárias de ±R$400 mil que se anulam saem do fluxo); descrição com

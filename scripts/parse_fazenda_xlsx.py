@@ -250,6 +250,24 @@ def main():
             account_id=None, credit_card_id=card,
         ))
 
+    # Mês da fatura = mês do VENCIMENTO (convenção do banco e do
+    # SicrediCreditHandler). A coluna "Cartão" da planilha mudou de convenção em
+    # nov/2025 (passou a rotular pelo mês das compras), então derivamos o
+    # vencimento da compra mais recente de cada fatura: Sicredi fecha ~dia 3-5 e
+    # vence dia 15 → compra mais recente até dia 10 vence naquele mês, depois
+    # disso no mês seguinte. Ver migração 20261023_fazenda_card_due_month.sql.
+    last_purchase = {}
+    for t in tx_rows:
+        if t['source'] == 'fazenda_xlsx_cartao':
+            k = (t['credit_card_id'], t['statement_month'])
+            last_purchase[k] = max(last_purchase.get(k, t['date']), t['date'])
+    for t in tx_rows:
+        if t['source'] == 'fazenda_xlsx_cartao':
+            last = datetime.date.fromisoformat(last_purchase[(t['credit_card_id'], t['statement_month'])])
+            if last.day > 10:
+                last = (last.replace(day=1) + datetime.timedelta(days=32))
+            t['statement_month'] = month_first(last)
+
     cats.finalize()
 
     # -- INVESTIMENTOS XP: pessoal / profissional month-end --
