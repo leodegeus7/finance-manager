@@ -33,6 +33,15 @@ OUT  = sys.argv[2] if len(sys.argv) > 2 else os.path.join(
     os.path.dirname(__file__), '..', 'supabase', 'migrations', '20260708_fazenda_seed.sql')
 
 APLIC_CAT   = 'Sicredi Aplicação Automática'
+
+# Linhas da aba CARTÃO que são cópias de outra fatura (ver migração
+# 20261023b_fazenda_card_duplicates.sql): Visa venc. set/2025 com rótulo
+# 25/08/2025 (965–1024) e Black venc. jan/2025 com rótulo 24/12/2025.
+SKIP_CARTAO_ROWS = {
+    427, 429, 431, 433, 435, 437, 439, 441, 443, 445, 447, 449, 451, 453, 455, 457,
+    459, 461, 463, 465, 467, 469, 471, 473, 475, 477, 479, *range(480, 504),
+    *range(965, 1025),
+}
 FATURA_RE   = re.compile(r'fatura', re.I)
 
 # Valores que aparecem na coluna "Categoria" da planilha mas NÃO são categorias
@@ -222,7 +231,7 @@ def main():
     # -- CARTÃO --
     cartao_file = sheets['CARTÃO']
     for rn, c in rows_of(z, ss, cartao_file):
-        if rn == 1:
+        if rn == 1 or rn in SKIP_CARTAO_ROWS:
             continue
         date = serial_to_date(c.get(1))
         valor = to_num(c.get(5))

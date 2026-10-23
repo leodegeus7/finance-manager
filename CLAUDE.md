@@ -408,9 +408,11 @@ correção para bancos semeados antes disso — idempotente). Regras do parser (
   naquele mês; depois → mês seguinte (Sicredi fecha ~dia 3–5, vence dia 15). Corrigido no banco pela
   migração [`20261023_fazenda_card_due_month.sql`](supabase/migrations/20261023_fazenda_card_due_month.sql).
   Saldos mensais usam o mês da **data** (fim de mês real), não a competência.
-- **Duplicatas conhecidas na planilha** (não removidas): Visa venc. set/2025 aparece 2× (rótulos
-  25/08 e 01/09, mesmas 60 compras) e Black venc. jan/2025 aparece 2× (rótulos 25/01/2025 e
-  24/12/2025).
+- **Duplicatas da planilha removidas:** Visa venc. set/2025 estava 2× (rótulos 25/08 e 01/09, mesmas
+  60 compras) e Black venc. jan/2025 2× (rótulos 25/01/2025 e 24/12/2025). O parser pula as cópias
+  (`SKIP_CARTAO_ROWS`) e a migração
+  [`20261023b_fazenda_card_duplicates.sql`](supabase/migrations/20261023b_fazenda_card_duplicates.sql)
+  apaga as 111 linhas do banco. A fatura Visa de **ago/2025 não existe na planilha** (lacuna conhecida).
 - `context = 'personal'` quando a categoria é **"Particular"**; senão `'professional'`.
 - **Overrides de tipo** (evitam inflar o fluxo): categoria `Sicredi Aplicação Automática` →
   `investment_*` (as varreduras diárias de ±R$400 mil que se anulam saem do fluxo); descrição com
