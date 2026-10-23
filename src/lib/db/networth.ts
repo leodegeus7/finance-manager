@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { Asset } from '@/investments/types'
 import { fetchAccounts, AccountRow } from '@/lib/db/accounts'
+import { addMonths } from '@/lib/format'
 
 export interface AccountHistoryRow {
   account_id: string
@@ -76,14 +77,70 @@ export async function fetchLatestAccountBalances(
   return computeLatestAccountBalances(rows, upToMonth)
 }
 
+/** accountId → months (YYYY-MM-01) in which the account had transactions. */
+export type AccountActivity = Map<string, Set<string>>
+
+/** How many months (view month included) count as "recent activity". */
+const ACTIVITY_WINDOW_MONTHS = 3
+
+/**
+ * Months with transactions per account, from `fromMonth` on. Lets a
+ * zero-balance account that is still in use (ex.: Sicredi conta-corrente da
+ * fazenda, que fecha o mês em R$ 0 porque o dinheiro fica na aplicação
+ * automática) stay active — see `isAccountActive`.
+ */
+export async function fetchAccountActivity(userId: string, fromMonth: string): Promise<AccountActivity> {
+  const activity: AccountActivity = new Map()
+  const PAGE = 1000
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('account_id, competency_month')
+      .eq('user_id', userId)
+      .not('account_id', 'is', null)
+      .gte('competency_month', fromMonth)
+      .order('id')
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    for (const r of (data ?? []) as { account_id: string; competency_month: string }[]) {
+      if (!activity.has(r.account_id)) activity.set(r.account_id, new Set())
+      activity.get(r.account_id)!.add(r.competency_month)
+    }
+    if (!data || data.length < PAGE) break
+  }
+  return activity
+}
+
+/** Earliest month whose activity matters for `viewMonth` (start of the window). */
+export function activityWindowStart(viewMonth: string): string {
+  return addMonths(viewMonth, -(ACTIVITY_WINDOW_MONTHS - 1))
+}
+
+/** True when the account had transactions in `viewMonth` or the months just before it. */
+export function hasRecentActivity(activity: AccountActivity | undefined, accountId: string, viewMonth: string): boolean {
+  const months = activity?.get(accountId)
+  if (!months || !viewMonth) return false
+  for (let i = 0; i < ACTIVITY_WINDOW_MONTHS; i++) {
+    if (months.has(addMonths(viewMonth, -i))) return true
+  }
+  return false
+}
+
 /**
  * An account is considered active if it has no history yet (newly created /
- * never tracked), or its last recorded balance is positive and recent
- * (within 12 months of `viewMonth`).
+ * never tracked), or its last recorded balance is recent (within 12 months of
+ * `viewMonth`) and either positive, or exactly zero while the account still has
+ * recent transactions (`recentActivity`). A zero balance with no movement means
+ * the account was closed; a negative balance is always treated as inactive.
  */
-export function isAccountActive(entry: AccountLatestEntry | undefined, viewMonth: string): boolean {
+export function isAccountActive(
+  entry: AccountLatestEntry | undefined,
+  viewMonth: string,
+  recentActivity = false,
+): boolean {
   if (!entry) return true                 // no history = newly created or never tracked → always show
-  if (entry.balance <= 0) return false    // explicitly zeroed
+  if (entry.balance < 0) return false
+  if (entry.balance === 0 && !recentActivity) return false   // zeroed and unused = closed
   if (!viewMonth) return true
   const [vy, vm] = viewMonth.split('-').map(Number)
   const [ey, em] = entry.month.split('-').map(Number)
@@ -110,6 +167,7 @@ export function enrichAccounts(
   accounts: AccountRow[],
   entries: Map<string, AccountLatestEntry>,
   month: string,
+  activity?: AccountActivity,
 ): EnrichedAccount[] {
   return accounts
     .map((acc) => ({
@@ -117,17 +175,18 @@ export function enrichAccounts(
       latestBalance: entries.get(acc.id)?.balance ?? acc.balance,
       latestMonth:   entries.get(acc.id)?.month,
     }))
-    .filter((acc) => isAccountActive(entries.get(acc.id), month))
+    .filter((acc) => isAccountActive(entries.get(acc.id), month, hasRecentActivity(activity, acc.id, month)))
     .sort((a, b) => b.latestBalance - a.latestBalance)
 }
 
 /** Fetches accounts + their latest recorded balances and combines them via `enrichAccounts`. */
 export async function fetchEnrichedAccounts(userId: string, month: string): Promise<EnrichedAccount[]> {
-  const [accounts, { entries }] = await Promise.all([
+  const [accounts, { entries }, activity] = await Promise.all([
     fetchAccounts(userId),
     fetchLatestAccountBalances(userId, month),
+    fetchAccountActivity(userId, activityWindowStart(month)),
   ])
-  return enrichAccounts(accounts, entries, month)
+  return enrichAccounts(accounts, entries, month, activity)
 }
 
 /** Insert or update the balance snapshot for an account in a given month. */

@@ -3,7 +3,7 @@ import { NetWorthSnapshot, Asset } from '@/investments/types'
 import {
   fetchAccountBalanceHistory, fetchAssets, AccountHistoryRow,
   computeLatestAccountBalances, enrichAccounts, EnrichedAccount,
-  isAccountActive,
+  isAccountActive, fetchAccountActivity, activityWindowStart, AccountActivity,
 } from '@/lib/db/networth'
 import { fetchAccounts, AccountRow } from '@/lib/db/accounts'
 import { buildNetWorthTimeline } from '@/investments/NetWorthEngine'
@@ -30,6 +30,8 @@ function computeTimeline(
 
   const raw = Array.from(months).sort().map((month) => {
     const { entries } = computeLatestAccountBalances(history, month)
+    // Sem `recentActivity` de propósito: conta zerada em uso soma R$ 0 de
+    // qualquer forma, então o total bate com Contas & Cartões.
     const accountsTotal = accounts
       .filter((acc) => isAccountActive(entries.get(acc.id), month))
       .reduce((s, acc) => s + (entries.get(acc.id)?.balance ?? acc.balance), 0)
@@ -71,6 +73,15 @@ export function useNetWorth(userId: string, selectedMonth: string) {
 
   useEffect(load, [userId])
 
+  // Months with transactions per account — keeps zero-balance accounts that
+  // are still in use in the account list (same rule as Contas & Cartões).
+  const [activity, setActivity] = useState<AccountActivity>(new Map())
+  useEffect(() => {
+    fetchAccountActivity(userId, activityWindowStart(selectedMonth))
+      .then(setActivity)
+      .catch(() => {/* ignore: falls back to the balance-only rule */})
+  }, [userId, selectedMonth])
+
   // Total of active assets/investments (no per-month history, so it's a
   // current snapshot applied across the timeline).
   const assetsTotal = useMemo(
@@ -89,8 +100,8 @@ export function useNetWorth(userId: string, selectedMonth: string) {
   // same data/filter used by Contas & Cartões.
   const enrichedAccounts = useMemo<EnrichedAccount[]>(() => {
     const { entries } = computeLatestAccountBalances(history, selectedMonth)
-    return enrichAccounts(accounts, entries, selectedMonth)
-  }, [history, accounts, selectedMonth])
+    return enrichAccounts(accounts, entries, selectedMonth, activity)
+  }, [history, accounts, selectedMonth, activity])
 
   return { timeline, assets, assetsTotal, accounts, enrichedAccounts, loading, error, reload: load }
 }

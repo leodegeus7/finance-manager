@@ -132,6 +132,7 @@ export function MonthlyChecklist() {
           month={balanceMonth}
           onClose={() => setBalanceMonth(null)}
           onSaved={refetch}
+          onOpenXpSplit={isFazenda ? () => setXpSplitMonth(balanceMonth) : undefined}
         />
       )}
 

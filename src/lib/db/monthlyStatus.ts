@@ -1,5 +1,8 @@
 import { supabase } from '@/lib/supabase'
-import { fetchAccountBalanceHistory, computeLatestAccountBalances, isAccountActive } from './networth'
+import {
+  fetchAccountBalanceHistory, computeLatestAccountBalances, isAccountActive,
+  fetchAccountActivity, activityWindowStart, hasRecentActivity,
+} from './networth'
 import { fetchXpSplitHistory } from './xpSplit'
 
 export interface MonthlyStatus {
@@ -22,7 +25,8 @@ export interface MonthlyStatus {
  * - Balanço: recorded a balance for EVERY active account (regular or
  *   investment — both live in account_balance_history) for that exact month.
  *   "Active" mirrors Contas & Cartões (isAccountActive): an account with no
- *   history yet, or whose last recorded balance is positive and recent.
+ *   history yet, or whose last recorded balance is recent and positive — or
+ *   zero while the account still has recent transactions.
  */
 export async function fetchMonthlyStatus(userId: string, months: string[]): Promise<MonthlyStatus[]> {
   const { data: accs, error: accErr } = await supabase
@@ -33,7 +37,8 @@ export async function fetchMonthlyStatus(userId: string, months: string[]): Prom
   if (accErr) throw accErr
   const accounts = (accs ?? []) as { id: string; name: string }[]
 
-  const [cardRes, accountRes, history, xpSplit] = await Promise.all([
+  const oldestMonth = months.reduce((a, b) => (a < b ? a : b), months[0])
+  const [cardRes, accountRes, history, xpSplit, activity] = await Promise.all([
     supabase
       .from('transactions')
       .select('statement_month')
@@ -51,6 +56,7 @@ export async function fetchMonthlyStatus(userId: string, months: string[]): Prom
       .in('competency_month', months),
     fetchAccountBalanceHistory(userId),
     userId === 'fazenda' ? fetchXpSplitHistory(userId) : Promise.resolve([]),
+    fetchAccountActivity(userId, activityWindowStart(oldestMonth)),
   ])
 
   if (cardRes.error) throw cardRes.error
@@ -64,7 +70,7 @@ export async function fetchMonthlyStatus(userId: string, months: string[]): Prom
     const { entries } = computeLatestAccountBalances(history, month)
     const missing = accounts.filter((a) => {
       const entry = entries.get(a.id)
-      if (!isAccountActive(entry, month)) return false
+      if (!isAccountActive(entry, month, hasRecentActivity(activity, a.id, month))) return false
       // "Active" allows carrying forward a past balance — but the Balanço
       // checklist wants an entry recorded FOR this specific month.
       return entry?.month !== month

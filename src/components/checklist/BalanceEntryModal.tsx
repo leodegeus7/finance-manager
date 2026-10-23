@@ -2,26 +2,40 @@
 // na coluna Balanço do Checklist. Pré-carrega as contas ativas (com o último
 // saldo conhecido como sugestão) e permite adicionar outras contas da lista.
 //
-// A conta única XP da fazenda (faz-acc-xp) fica de fora daqui — seu saldo é
+// A conta única XP da fazenda (faz-acc-xp) não é editável aqui — seu saldo é
 // sempre pessoal + profissional, lançado via "Divisão XP" (upsertXpSplit),
 // que já grava o total aqui em account_balance_history. Editar os dois
-// lugares deixaria a soma dessincronizada do saldo real da conta.
+// lugares deixaria a soma dessincronizada do saldo real da conta. Ela aparece
+// como linha só de leitura, com atalho para a Divisão XP, porque o checklist
+// também a cobra como pendência do Balanço.
 const DERIVED_ACCOUNT_IDS = new Set(['faz-acc-xp'])
 
 import { useState, useEffect } from 'react'
 import { AccountRow, fetchAccounts } from '@/lib/db/accounts'
-import { fetchLatestAccountBalances, isAccountActive, upsertAccountBalance, AccountLatestEntry } from '@/lib/db/networth'
-import { formatMonth } from '@/lib/format'
+import {
+  fetchLatestAccountBalances, isAccountActive, upsertAccountBalance, AccountLatestEntry,
+  fetchAccountActivity, activityWindowStart, hasRecentActivity,
+} from '@/lib/db/networth'
+import { formatCurrency, formatMonth } from '@/lib/format'
 
 interface Props {
   userId: string
   month: string       // YYYY-MM-01
   onClose: () => void
   onSaved: () => void
+  /** Opens the "Divisão XP" modal for this month (fazenda). */
+  onOpenXpSplit?: () => void
 }
 
-export function BalanceEntryModal({ userId, month, onClose, onSaved }: Props) {
+interface DerivedRow {
+  account: AccountRow
+  /** Balance recorded for THIS month, or null when still pending. */
+  balance: number | null
+}
+
+export function BalanceEntryModal({ userId, month, onClose, onSaved, onOpenXpSplit }: Props) {
   const [accounts, setAccounts]   = useState<AccountRow[]>([])
+  const [derived, setDerived]     = useState<DerivedRow[]>([])
   const [loading, setLoading]     = useState(true)
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
@@ -33,12 +47,28 @@ export function BalanceEntryModal({ userId, month, onClose, onSaved }: Props) {
   useEffect(() => {
     setLoading(true)
     setError('')
-    Promise.all([fetchAccounts(userId), fetchLatestAccountBalances(userId, month)])
-      .then(([allAccs, { entries }]) => {
+    Promise.all([
+      fetchAccounts(userId),
+      fetchLatestAccountBalances(userId, month),
+      fetchAccountActivity(userId, activityWindowStart(month)),
+    ])
+      .then(([allAccs, { entries }, activity]) => {
+        const isActive = (a: AccountRow) =>
+          isAccountActive(entries.get(a.id), month, hasRecentActivity(activity, a.id, month))
+
         const accs = allAccs.filter((a) => !DERIVED_ACCOUNT_IDS.has(a.id))
         setAccounts(accs)
 
-        const active = accs.filter((a) => isAccountActive(entries.get(a.id), month))
+        setDerived(
+          allAccs
+            .filter((a) => DERIVED_ACCOUNT_IDS.has(a.id) && isActive(a))
+            .map((a) => {
+              const entry = entries.get(a.id)
+              return { account: a, balance: entry?.month === month ? entry.balance : null }
+            }),
+        )
+
+        const active = accs.filter(isActive)
         setIncludedIds(active.map((a) => a.id))
 
         const initialValues: Record<string, string> = {}
@@ -112,9 +142,31 @@ export function BalanceEntryModal({ userId, month, onClose, onSaved }: Props) {
             <p className="text-sm text-gray-400 text-center py-12">Carregando...</p>
           ) : (
             <>
-              {includedIds.length === 0 && (
+              {includedIds.length === 0 && derived.length === 0 && (
                 <p className="text-sm text-gray-400 text-center py-6">Nenhuma conta ativa encontrada</p>
               )}
+
+              {derived.map(({ account, balance }) => (
+                <div key={account.id} className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{account.name}</p>
+                    <p className="text-xs text-gray-400">Lançado via Divisão XP</p>
+                  </div>
+                  {balance != null ? (
+                    <span className="w-32 text-sm text-right text-gray-500 tabular-nums">{formatCurrency(balance)}</span>
+                  ) : (
+                    <span className="text-xs bg-red-50 text-red-600 rounded-full px-2 py-0.5">Pendente</span>
+                  )}
+                  {onOpenXpSplit && (
+                    <button
+                      onClick={() => { onClose(); onOpenXpSplit() }}
+                      className="text-xs font-medium text-gray-600 hover:text-gray-900 whitespace-nowrap"
+                    >
+                      {balance != null ? 'Editar' : 'Lançar'} →
+                    </button>
+                  )}
+                </div>
+              ))}
 
               {includedIds.map((id) => {
                 const acc = accounts.find((a) => a.id === id)

@@ -10,7 +10,10 @@ import {
   updateAccountInvestment,
   AccountRow, CardRow,
 } from '@/lib/db/accounts'
-import { fetchLatestAccountBalances, AccountLatestEntry, enrichAccounts } from '@/lib/db/networth'
+import {
+  fetchLatestAccountBalances, AccountLatestEntry, enrichAccounts,
+  fetchAccountActivity, activityWindowStart, AccountActivity,
+} from '@/lib/db/networth'
 import { CardTransactionsModal } from '@/components/cards/CardTransactionsModal'
 import { CardInstallmentsModal } from '@/components/cards/CardInstallmentsModal'
 import { CardInvoiceChart } from '@/components/charts/CardInvoiceChart'
@@ -99,9 +102,13 @@ export function AccountsCards() {
   // Latest balances from history
   const [latestEntries, setLatestEntries] = useState<Map<string, AccountLatestEntry>>(new Map())
   const [maxMonth, setMaxMonth] = useState('')
+  const [activity, setActivity] = useState<AccountActivity>(new Map())
   useEffect(() => {
     fetchLatestAccountBalances(userId, month)
       .then(({ entries, maxMonth: mx }) => { setLatestEntries(entries); setMaxMonth(mx) })
+      .catch(() => {/* ignore */})
+    fetchAccountActivity(userId, activityWindowStart(month))
+      .then(setActivity)
       .catch(() => {/* ignore */})
   }, [userId, month])
 
@@ -184,7 +191,7 @@ export function AccountsCards() {
     refetch()
   }
 
-  const enrichedAccounts = enrichAccounts(accounts, latestEntries, month)
+  const enrichedAccounts = enrichAccounts(accounts, latestEntries, month, activity)
 
   const totalBalance = enrichedAccounts.reduce((s, a) => s + a.latestBalance, 0)
   const visibleAccounts = showAllAccounts ? enrichedAccounts : enrichedAccounts.slice(0, ACCOUNTS_PREVIEW_COUNT)

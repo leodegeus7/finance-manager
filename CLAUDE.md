@@ -286,7 +286,9 @@ Status mensal de tarefas (ex.: lançar saldo das contas via `BalanceEntryModal` 
 `isAccountActive` (mesmo critério de "ativa" do `useNetWorth`) e só marca "Feito" quando **toda**
 conta ativa (comum ou investimento — ambas usam `account_balance_history`) tem saldo lançado
 **naquele mês exato** (não um saldo carregado de mês anterior). O badge mostra "N pendentes" e
-expande (▼) listando quais contas faltam.
+expande (▼) listando quais contas faltam. O `BalanceEntryModal` usa o mesmo critério; a XP da
+fazenda (`faz-acc-xp`) aparece nele só como leitura ("Lançado via Divisão XP", com atalho
+Lançar/Editar → `XpSplitModal`), porque o saldo dela é sempre pessoal + profissional.
 
 ---
 
@@ -352,6 +354,11 @@ ocorrência (label + número direto, sem "R$"), que é a inequívoca.
 - **Saldo da conta** vem de `enrichAccounts` (último lançamento manual até o mês), NÃO do campo
   estático `accounts.balance` (esse é só fallback inicial). Patrimônio na Dashboard, Patrimônio e
   Contas usam a mesma regra de propósito, para baterem.
+- **Conta ativa** (`isAccountActive`): sem histórico, ou último saldo de até 12 meses atrás que seja
+  positivo **ou zero com movimentação recente** (transações no mês ou nos 2 anteriores —
+  `fetchAccountActivity`/`hasRecentActivity`). Zero sem movimentação = encerrada; negativo = inativa.
+  Ex.: a Sicredi conta-corrente da fazenda fecha o mês em R$ 0 (dinheiro na aplicação automática) e
+  continua ativa. O timeline de patrimônio não usa a atividade (conta zerada soma 0 de qualquer jeito).
 - **Bug histórico resolvido** (commit `dd7b817`): dupla contagem de fatura quando meses futuros já
   tinham dado real importado — ver lógica de `projected`/`lastRealMonth` no `CardInvoiceEngine`.
 
