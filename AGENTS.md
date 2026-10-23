@@ -311,6 +311,12 @@ Handlers em `src/import/handlers/` (cada um implementa `identify`/`parse`/`norma
 
 ### Import via CLI / agente
 
+**Lotes revisados:** `--export-review <json>` exporta todas inicialmente não aprovadas;
+`--review <json>` seleciona somente aprovadas com categoria/contexto/escopo/splits explícitos.
+Leia [scripts/reviewed-import.md](scripts/reviewed-import.md). Mantenha o JSON privado fora do repo.
+`--commit --confirm` grava somente selecionadas, com recibos antes/depois e readback.
+Não recorte o CSV nem improvise escrita direta.
+
 Para importar arquivos fora da UI (ex.: recebidos pelo Telegram), use:
 
 ```bash

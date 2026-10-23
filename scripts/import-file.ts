@@ -1,5 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
-import { readFileSync } from 'node:fs'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import { applyReview, exportReview, rowKey, sameRow, sha256 } from './import-review'
 import { basename, extname } from 'node:path'
 import { resolveHandler, isCardHandler, isMuriloHandler } from '../src/import/HandlerRegistry'
 import { runImportPipeline } from '../src/import/ImportPipeline'
@@ -16,6 +18,8 @@ interface CliArgs {
   interCardId?: string
   rdbAccountId?: string
   password?: string
+  review?: string
+  exportReview?: string
   commit: boolean
   confirm: boolean
   allowGuessedMonth: boolean
@@ -85,6 +89,8 @@ Options:
   --inter-card-id <id>        Murilo multi-source file: Inter card
   --rdb-account-id <id>       Murilo multi-source file: RDB account
   --password <value>          Password for encrypted PDFs, such as C6 invoices
+  --export-review <path>      Export private JSON review (all rows unapproved); dry-run only
+  --review <path>             Import ONLY explicitly approved identities with reviewed category/context/scope/splits
   --allow-guessed-month       Allow commit when card month was guessed as current month
   --commit --confirm          Write to Supabase
   --json                      Print machine-readable JSON
@@ -125,6 +131,8 @@ function parseArgs(argv: string[]): CliArgs {
     else if (arg === '--inter-card-id') out.interCardId = next()
     else if (arg === '--rdb-account-id') out.rdbAccountId = next()
     else if (arg === '--password') out.password = next()
+    else if (arg === '--review') out.review = next()
+    else if (arg === '--export-review') out.exportReview = next()
     else if (arg === '--commit') out.commit = true
     else if (arg === '--confirm') out.confirm = true
     else if (arg === '--allow-guessed-month') out.allowGuessedMonth = true
@@ -180,7 +188,7 @@ async function extractPDFText(buffer: Buffer, password?: string) {
     }
   }
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  const pdf = await pdfjs.getDocument({ data: findPDFStart(buffer), password, disableWorker: true }).promise
+  const pdf = await pdfjs.getDocument({ data: findPDFStart(buffer), password }).promise
   const pages: string[] = []
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
@@ -358,7 +366,7 @@ function countBy<T>(rows: T[], getKey: (row: T) => string) {
   return counts
 }
 
-async function countExisting(supabase: ReturnType<typeof createClient>, txs: NormalizedTransaction[]) {
+async function countExisting(supabase: SupabaseClient<any>, txs: Array<{ source: string; external_id: string }>) {
   let existing = 0
   const bySource = new Map<string, string[]>()
   for (const tx of txs) {
@@ -382,7 +390,7 @@ async function countExisting(supabase: ReturnType<typeof createClient>, txs: Nor
   return existing
 }
 
-async function upsertRows(supabase: ReturnType<typeof createClient>, rows: ImportRow[]) {
+async function upsertRows(supabase: SupabaseClient<any>, rows: ImportRow[]) {
   const result = { inserted: 0, skipped: 0, errors: [] as string[] }
   const rowErrors = validateRowsForWrite(rows)
   if (rowErrors.length) {
@@ -403,6 +411,40 @@ async function upsertRows(supabase: ReturnType<typeof createClient>, rows: Impor
     }
   }
   return result
+}
+
+async function readSelected(supabase: SupabaseClient<any>, rows: ImportRow[]) {
+  const found: Record<string, any>[] = []
+  const sources = [...new Set(rows.map(r => r.source))]
+  for (const source of sources) {
+    const ids = rows.filter(r => r.source === source).map(r => r.external_id)
+    for (let i = 0; i < ids.length; i += 100) {
+      const { data, error } = await supabase.from('transactions').select('*')
+        .eq('source', source).in('external_id', ids.slice(i, i + 100))
+      if (error) throw error
+      found.push(...(data ?? []))
+    }
+  }
+  return found
+}
+
+async function commitReviewed(supabase: SupabaseClient<any>, rows: ImportRow[]) {
+  const before = await readSelected(supabase, rows)
+  const wanted = new Map(rows.map(r => [rowKey(r), r]))
+  if (before.some(r => !sameRow(r, wanted.get(rowKey(r))!))) {
+    throw new Error('Existing transaction differs from reviewed row; refusing overwrite. Resolve separately.')
+  }
+  const folder = resolve(process.cwd(), '..', 'data', 'import-receipts')
+  mkdirSync(folder, { recursive: true, mode: 0o700 })
+  const prefix = join(folder, `${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}`)
+  writeFileSync(`${prefix}-before.json`, JSON.stringify({ before, requested: rows }, null, 2), { mode: 0o600, flag: 'wx' })
+  const result = await upsertRows(supabase, rows)
+  const after = await readSelected(supabase, rows)
+  const verified = new Map(after.map(r => [rowKey(r), r]))
+  const mismatch = rows.filter(r => !verified.has(rowKey(r)) || !sameRow(verified.get(rowKey(r))!, r))
+  writeFileSync(`${prefix}-after.json`, JSON.stringify({ result, after, verified: mismatch.length === 0 }, null, 2), { mode: 0o600, flag: 'wx' })
+  if (mismatch.length || result.errors.length) throw new Error(`Reviewed import incomplete: ${mismatch.length} unverified rows, ${result.errors.length} write errors. Inspect private receipt ${prefix}; do not claim success.`)
+  return { ...result, verified: rows.length, receipt: `${prefix}-after.json` }
 }
 
 function formatSummary(payload: Record<string, unknown>) {
@@ -441,6 +483,8 @@ async function main() {
   if (!args.file) throw new Error('Missing --file')
   if (!args.user) throw new Error('Missing --user leo|murilo')
   if (args.commit && !args.confirm) throw new Error('Refusing to write without --confirm')
+  if (args.exportReview && (args.commit || args.review)) throw new Error('--export-review is dry-run only; cannot combine with --review')
+  if (args.exportReview && resolve(args.exportReview) === resolve(args.file)) throw new Error('Review output cannot overwrite source')
 
   const env = loadEnv()
   const url = env.VITE_SUPABASE_URL
@@ -477,8 +521,18 @@ async function main() {
   }
 
   const pipeline = runImportPipeline({ fileName, fileContent, context: resolved.ctx })
-  const existing = await countExisting(supabase, pipeline.transactions)
-  const rows = buildRows(pipeline.transactions, args.user, resolved.ctx.accountId, resolved.ctx.creditCardId, cards)
+  let rows = buildRows(pipeline.transactions, args.user, resolved.ctx.accountId, resolved.ctx.creditCardId, cards)
+  if (args.exportReview) {
+    writeFileSync(args.exportReview, JSON.stringify(exportReview(rows, sha256(raw), args.user), null, 2), { mode: 0o600, flag: 'wx' })
+  }
+  if (args.review) {
+    if (pipeline.errors.length) throw new Error('Pipeline errors: cannot apply reviewed import')
+    const { data, error } = await supabase.from('categories').select('id')
+    if (error) throw error
+    rows = applyReview(rows, JSON.parse(readFileSync(args.review, 'utf8')), sha256(raw), args.user,
+      new Set((data ?? []).map(c => c.id)))
+  }
+  const existing = await countExisting(supabase, rows)
   const rowErrors = validateRowsForWrite(rows)
 
   const uncategorized = rows.filter((r) =>
@@ -500,7 +554,7 @@ async function main() {
   if (args.commit && rowErrors.length) {
     throw new Error(`Refusing to commit invalid import:\n${rowErrors.slice(0, 10).join('\n')}`)
   }
-  if (args.commit) writeResult = await upsertRows(supabase, rows)
+  if (args.commit) writeResult = args.review ? await commitReviewed(supabase, rows) : await upsertRows(supabase, rows)
 
   const payload = {
     mode: args.commit ? 'commit' : 'dry-run',
@@ -517,9 +571,10 @@ async function main() {
     },
     stats: {
       parsedRows: pipeline.total,
-      total: pipeline.transactions.length,
+      total: rows.length,
+      pendingOutsideReview: pipeline.transactions.length - rows.length,
       existing,
-      new: Math.max(0, pipeline.transactions.length - existing),
+      new: Math.max(0, rows.length - existing),
       skippedInsideFile: pipeline.skipped,
       uncategorized,
       possibleTransfers,
