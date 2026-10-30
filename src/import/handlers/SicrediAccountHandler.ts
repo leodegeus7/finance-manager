@@ -12,7 +12,7 @@
 // Overrides de tipo (mesma lógica da migração, p/ não inflar o fluxo):
 //   APLICACAO FINANCEIRA (débito) → investment_contribution  (varredura p/ aplicação)
 //   RESG.APLIC.FIN      (crédito) → investment_withdrawal
-//   PAG. FATURA cartão            → credit_card_payment
+//   PAG. FATURA / DEB.CTA.FATURA  → credit_card_payment
 //   resto: income/expense pelo sinal
 // ============================================================
 
@@ -23,7 +23,9 @@ import { hash } from '../utils/hash'
 const TYPE_RULES: Array<{ pattern: RegExp; type: TransactionType }> = [
   { pattern: /APLICACAO FINANCEIRA|APLIC\.?AUT|APLICACAO AUT/i, type: 'investment_contribution' },
   { pattern: /RESG\.?\s*APLIC|RESGATE.*APLIC/i,                 type: 'investment_withdrawal' },
-  { pattern: /PAG\.?\s*FAT|PAGTO?\s*FATURA|PAGAMENTO FATURA/i,  type: 'credit_card_payment' },
+  // Qualquer "FATURA" no extrato da conta é pagamento de fatura (ex.: "PAG. FATURA",
+  // "DEB.CTA.FATURA-030211746") — mesma regra do parser da migração.
+  { pattern: /PAG\.?\s*FAT|FATURA/i,                             type: 'credit_card_payment' },
 ]
 
 function detectType(description: string, signed: number): TransactionType {
