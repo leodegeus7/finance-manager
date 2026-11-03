@@ -13,6 +13,8 @@
 //   APLICACAO FINANCEIRA (débito) → investment_contribution  (varredura p/ aplicação)
 //   RESG.APLIC.FIN      (crédito) → investment_withdrawal
 //   PAG. FATURA / DEB.CTA.FATURA  → credit_card_payment
+//   As aplicações/resgates já vêm com a categoria "Sicredi Aplicação Automática"
+//   (são varreduras automáticas, ninguém precisa classificar à mão).
 //   resto: income/expense pelo sinal
 // ============================================================
 
@@ -27,6 +29,8 @@ const TYPE_RULES: Array<{ pattern: RegExp; type: TransactionType }> = [
   // "DEB.CTA.FATURA-030211746") — mesma regra do parser da migração.
   { pattern: /PAG\.?\s*FAT|FATURA/i,                             type: 'credit_card_payment' },
 ]
+
+const AUTO_INVESTMENT_CATEGORY_ID = 'faz-cat-sicredi-aplicacao-automatica'
 
 function detectType(description: string, signed: number): TransactionType {
   for (const r of TYPE_RULES) if (r.pattern.test(description)) return r.type
@@ -100,6 +104,9 @@ export class SicrediAccountHandler implements ImportHandler {
         context: 'professional',
         scope: 'individual',
         suggested_context: 'professional',
+        ...(type === 'investment_contribution' || type === 'investment_withdrawal'
+          ? { suggested_category_id: AUTO_INVESTMENT_CATEGORY_ID }
+          : {}),
       })
     }
 
