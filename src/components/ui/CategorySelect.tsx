@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { CategoryRow } from '@/lib/db/categories'
 
 interface Props {
@@ -28,6 +29,9 @@ export function CategorySelect({
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  // Posição da lista (fixed, via portal) — assim nenhum container com
+  // overflow-hidden (ex.: grupo da fatura) corta o dropdown.
+  const [pos, setPos] = useState<{ left: number; width: number; top?: number; bottom?: number; maxHeight: number } | null>(null)
 
   const selected = categories.find(c => c.id === value)
   const label = selected
@@ -54,13 +58,39 @@ export function CategorySelect({
 
   useEffect(() => {
     function onMouseDown(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const t = e.target as Node
+      if (containerRef.current && !containerRef.current.contains(t) && !listRef.current?.contains(t)) {
         setOpen(false)
       }
     }
     document.addEventListener('mousedown', onMouseDown)
     return () => document.removeEventListener('mousedown', onMouseDown)
   }, [])
+
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return }
+    function update() {
+      const el = inputRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const gap = 4
+      const desired = 224 // max-h-56
+      const below = window.innerHeight - r.bottom - gap - 8
+      const above = r.top - gap - 8
+      if (below >= Math.min(desired, 160) || below >= above) {
+        setPos({ left: r.left, width: r.width, top: r.bottom + gap, maxHeight: Math.min(desired, below) })
+      } else {
+        setPos({ left: r.left, width: r.width, bottom: window.innerHeight - r.top + gap, maxHeight: Math.min(desired, above) })
+      }
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [open])
 
   function handleSelect(id: string) {
     onChange(id)
@@ -131,8 +161,13 @@ export function CategorySelect({
         readOnly={!open}
       />
 
-      {open && (
-        <div ref={listRef} className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+      {open && pos && createPortal(
+        <div
+          ref={listRef}
+          data-floating-dropdown
+          style={{ position: 'fixed', left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight }}
+          className="z-[1000] bg-white border border-gray-200 rounded-xl shadow-lg overflow-y-auto"
+        >
           <div
             data-idx="-1"
             className={`px-3 py-2 text-sm cursor-pointer ${
@@ -166,7 +201,8 @@ export function CategorySelect({
               <span>{c.name}</span>
             </div>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

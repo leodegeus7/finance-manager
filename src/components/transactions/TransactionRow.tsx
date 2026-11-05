@@ -64,6 +64,9 @@ export function TransactionRow({ tx, categories, accounts, userNames, onUpdate, 
       // (ex.: opção do dropdown de categoria, que fecha ao selecionar). Eles
       // faziam parte do editor da linha — não são um clique realmente "fora".
       if (!document.contains(target)) return
+      // Dropdowns renderizados em portal (CategorySelect) ficam fora da linha
+      // no DOM, mas fazem parte do editor.
+      if (target instanceof Element && target.closest('[data-floating-dropdown]')) return
       if (rowRef.current && !rowRef.current.contains(target)) {
         handleCancel()
       }
